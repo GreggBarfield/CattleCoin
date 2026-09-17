@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
@@ -90,7 +90,6 @@ describe("Login page", () => {
     const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
     localStorage.setItem("cattlecoin_user", JSON.stringify(user));
 
-    const navigated: string[] = [];
     // We just verify no crash — redirect happens via useNavigate
     expect(() =>
       render(<Wrapper><Login /></Wrapper>)

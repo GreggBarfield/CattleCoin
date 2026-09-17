@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function mockFetchOk(body: unknown) {
