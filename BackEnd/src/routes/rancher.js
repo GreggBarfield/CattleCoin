@@ -1,16 +1,11 @@
-import express from "express";
+﻿import express from "express";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 const HERD_STATUSES = ["available", "pending", "sold"];
-const UUID_V4_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function getRancherId(req) {
-  const candidate = req.header("x-rancher-id") ?? req.query.rancherId ?? null;
-  if (!candidate) return null;
-  const normalized = String(candidate).trim();
-  return normalized.length > 0 ? normalized : null;
-}
+router.use(requireAuth, requireRole("rancher"));
 
 function normalizeStatus(value) {
   if (!value) return null;
@@ -18,25 +13,8 @@ function normalizeStatus(value) {
   return HERD_STATUSES.includes(normalized) ? normalized : null;
 }
 
-function ensureValidRancherIdOr400(rancherId, res) {
-  if (!rancherId) {
-    res.status(400).json({
-      error: "Missing rancher id. Provide x-rancher-id header or rancherId query param.",
-    });
-    return false;
-  }
-  if (!UUID_V4_LIKE.test(rancherId)) {
-    res.status(400).json({ error: "Invalid rancher id format." });
-    return false;
-  }
-  return true;
-}
-
 router.get("/me/herds", async (req, res) => {
-  const rancherId = getRancherId(req);
-  if (!ensureValidRancherIdOr400(rancherId, res)) {
-    return;
-  }
+  const rancherId = req.user.userId;
 
   const statusFilter = normalizeStatus(req.query.status);
   if (req.query.status && !statusFilter) {
@@ -88,10 +66,7 @@ router.get("/me/herds", async (req, res) => {
 });
 
 router.get("/me/summary", async (req, res) => {
-  const rancherId = getRancherId(req);
-  if (!ensureValidRancherIdOr400(rancherId, res)) {
-    return;
-  }
+  const rancherId = req.user.userId;
 
   try {
     const [herdStats, cattleHealthStats] = await Promise.all([
@@ -144,10 +119,7 @@ router.get("/me/summary", async (req, res) => {
 });
 
 router.get("/me/status-board", async (req, res) => {
-  const rancherId = getRancherId(req);
-  if (!ensureValidRancherIdOr400(rancherId, res)) {
-    return;
-  }
+  const rancherId = req.user.userId;
 
   try {
     const result = await pool.query(
@@ -190,10 +162,7 @@ router.get("/me/status-board", async (req, res) => {
 });
 
 router.get("/me/investments", async (req, res) => {
-  const rancherId = getRancherId(req);
-  if (!ensureValidRancherIdOr400(rancherId, res)) {
-    return;
-  }
+  const rancherId = req.user.userId;
 
   try {
     const result = await pool.query(

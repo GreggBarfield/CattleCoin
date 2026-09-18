@@ -1,4 +1,4 @@
-import * as React from "react";
+﻿import * as React from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export type CurrentUser = {
   slug:   string;
   role:   UserRole;
   email:  string;
+  token:  string;
 };
 
 type AuthContextValue = {
@@ -27,17 +28,26 @@ const AuthContext = React.createContext<AuthContextValue>({
   logout: () => {},
 });
 
+// ── Storage helpers (usable outside the React tree, e.g. from api.ts) ─────────
+
+function readStoredUser(): CurrentUser | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? (JSON.parse(stored) as CurrentUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The current JWT, or null if no one is logged in. Safe to call outside React (e.g. api.ts). */
+export function getAuthToken(): string | null {
+  return readStoredUser()?.token ?? null;
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? (JSON.parse(stored) as CurrentUser) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(() => readStoredUser());
 
   function login(user: CurrentUser) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user));

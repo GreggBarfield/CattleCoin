@@ -1,21 +1,34 @@
-import express from "express";
+﻿import express from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import pool from "../db.js";
 
 const router = express.Router();
 
-// ─── POST /api/auth/login ─────────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRES_IN = "7d";
+
+function signToken(user) {
+  return jwt.sign(
+    { userId: user.user_id, slug: user.slug, role: user.role, email: user.email },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+}
+
+// ─── POST /api/auth/login ────────────────────────────────────────────────────
 // Body: { username: string, password: string }
 //   username = user's slug
-//   password = slug (seed users) OR the password set during signup
-//
-// Auth priority (no bcrypt yet — Google OAuth coming later):
-//   1. password matches stored password_hash directly  (signup users)
-//   2. password matches slug                           (seed / demo users)
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: "username and password are required" });
+  }
+
+  if (!JWT_SECRET) {
+    console.error("JWT_SECRET is not set in the environment");
+    return res.status(500).json({ error: "Server misconfigured" });
   }
 
   try {
@@ -29,17 +42,16 @@ router.post("/login", async (req, res) => {
     }
 
     const user = result.rows[0];
-
-    // Check password: real signup password first, then slug fallback for seed data
-    const passwordOk =
-      password === user.password_hash ||   // signup users (stored as plaintext for now)
-      password === user.slug;              // seed/demo users (password = slug)
+    const passwordOk = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordOk) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    const token = signToken(user);
+
     res.json({
+      token,
       userId: user.user_id,
       slug:   user.slug,
       role:   user.role,
@@ -51,16 +63,20 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// ─── POST /api/auth/signup ────────────────────────────────────────────────────
+// ─── POST /api/auth/signup ───────────────────────────────────────────────────
 // Body: { username, email, password, role }
 //   role must be one of: investor | rancher | feedlot  (no admin self-signup)
 //   username becomes the slug
-//   password stored as-is for now (Google OAuth replaces this later)
 router.post("/signup", async (req, res) => {
   const { username, email, password, role } = req.body;
 
   if (!username || !email || !password || !role) {
     return res.status(400).json({ error: "username, email, password, and role are required" });
+  }
+
+  if (!JWT_SECRET) {
+    console.error("JWT_SECRET is not set in the environment");
+    return res.status(500).json({ error: "Server misconfigured" });
   }
 
   const allowedRoles = ["investor", "rancher", "feedlot"];
@@ -73,7 +89,6 @@ router.post("/signup", async (req, res) => {
   const slug = username.trim().toLowerCase().replace(/\s+/g, "_");
 
   try {
-    // Check for duplicate slug or email
     const existing = await pool.query(
       "SELECT user_id FROM users WHERE slug = $1 OR email = $2",
       [slug, email.trim()]
@@ -82,15 +97,20 @@ router.post("/signup", async (req, res) => {
       return res.status(409).json({ error: "Username or email already taken" });
     }
 
+    const passwordHash = await bcrypt.hash(password, 10);
+
     const result = await pool.query(
       `INSERT INTO users (role, email, password_hash, slug)
        VALUES ($1::user_role, $2, $3, $4)
        RETURNING user_id, slug, role, email`,
-      [role, email.trim(), password, slug]
+      [role, email.trim(), passwordHash, slug]
     );
 
     const user = result.rows[0];
+    const token = signToken(user);
+
     res.status(201).json({
+      token,
       userId: user.user_id,
       slug:   user.slug,
       role:   user.role,

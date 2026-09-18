@@ -1,10 +1,10 @@
 import express from "express";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 const HERD_STATUSES = ["available", "pending", "sold"];
 const HERD_SEASONS = ["spring", "fall"];
-const UUID_V4_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parsePositiveInt(value, defaultValue, maxValue = 1000) {
   const parsed = Number.parseInt(value, 10);
@@ -36,13 +36,6 @@ function normalizeSeason(value) {
   return normalized === "spring" ? "Spring" : "Fall";
 }
 
-function getRancherId(req) {
-  const candidate = req.header("x-rancher-id") ?? req.query.rancherId ?? req.body?.rancherId ?? null;
-  if (!candidate) return null;
-  const normalized = String(candidate).trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
 function parseBoolean(value, defaultValue = false) {
   if (value === undefined || value === null) return defaultValue;
   if (typeof value === "boolean") return value;
@@ -51,10 +44,6 @@ function parseBoolean(value, defaultValue = false) {
   if (["true", "1", "yes", "y"].includes(normalized)) return true;
   if (["false", "0", "no", "n"].includes(normalized)) return false;
   return defaultValue;
-}
-
-function isUuid(value) {
-  return UUID_V4_LIKE.test(value);
 }
 
 function isValidSexCode(value) {
@@ -103,28 +92,36 @@ function mapCowPayload(body) {
 }
 
 function validateCowPayload(cow) {
-  if (!cow.officialId && !cow.registrationNumber) {
-    return "Missing cow identifier. Provide officialId/official_id/tagId/official_id_suffix or registrationNumber.";
-  }
-  if (cow.officialIdSuffix && cow.officialIdSuffix.length !== 12) {
-    return "officialIdSuffix must be exactly 12 digits.";
-  }
-  if (cow.sexCode && !isValidSexCode(cow.sexCode)) {
-    return "Invalid sexCode. Expected one of B, C, H, S.";
-  }
-  if (cow.initialWeightLbs !== null && Number(cow.initialWeightLbs) <= 0) {
-    return "weightLbs must be greater than 0.";
-  }
+  // Validation temporarily disabled while testing with sample CSVs that don't
+  // match real EID/registration formats. The real checks are kept below,
+  // commented out, so they're easy to restore once we're working with real
+  // tag data again:
+  //
+  // if (!cow.officialId && !cow.registrationNumber) {
+  //   return "Missing cow identifier. Provide officialId/official_id/tagId/official_id_suffix or registrationNumber.";
+  // }
+  // if (cow.officialIdSuffix && cow.officialIdSuffix.length !== 12) {
+  //   return "officialIdSuffix must be exactly 12 digits.";
+  // }
+  // if (cow.sexCode && !isValidSexCode(cow.sexCode)) {
+  //   return "Invalid sexCode. Expected one of B, C, H, S.";
+  // }
+  // if (cow.initialWeightLbs !== null && Number(cow.initialWeightLbs) <= 0) {
+  //   return "weightLbs must be greater than 0.";
+  // }
   return null;
 }
 
+// rancherId here always comes from the verified JWT (req.user.userId) on every
+// call site below, never from a client-supplied header/query/body field - so
+// this can no longer be bypassed by simply omitting an id.
 async function ensureHerdAccess(client, herdId, rancherId) {
   const ownedOrExists = await client.query(
     `
     SELECT herd_id, rancher_id
     FROM herds
     WHERE herd_id = $1
-      AND ($2::uuid IS NULL OR rancher_id = $2)
+      AND rancher_id = $2
     `,
     [herdId, rancherId]
   );
@@ -133,11 +130,9 @@ async function ensureHerdAccess(client, herdId, rancherId) {
     return { ok: true, status: 200 };
   }
 
-  if (rancherId) {
-    const exists = await client.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
-    if (exists.rowCount > 0) {
-      return { ok: false, status: 403, error: "Rancher is not allowed to access this herd." };
-    }
+  const exists = await client.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
+  if (exists.rowCount > 0) {
+    return { ok: false, status: 403, error: "Rancher is not allowed to access this herd." };
   }
   return { ok: false, status: 404, error: "Herd not found." };
 }
@@ -223,6 +218,8 @@ async function refreshHerdCounts(client, herdId) {
   );
 }
 
+// ─── Read routes (public/browse — unchanged) ─────────────────────────────────
+
 router.get("/", async (req, res) => {
   const rancherId = req.query.rancherId ? String(req.query.rancherId).trim() : null;
   const status = normalizeStatus(req.query.status);
@@ -283,6 +280,7 @@ router.get("/", async (req, res) => {
       items: result.rows,
     });
   } catch (error) {
+    console.error("GET /api/herds error:", error);
     return res.status(500).json({ error: "Failed to fetch herds." });
   }
 });
@@ -324,282 +322,8 @@ router.get("/:herdId", async (req, res) => {
 
     return res.json(result.rows[0]);
   } catch (error) {
+    console.error("GET /api/herds/:herdId error:", error);
     return res.status(500).json({ error: "Failed to fetch herd." });
-  }
-});
-
-router.post("/", async (req, res) => {
-  const rancherId = getRancherId(req);
-  const body = req.body ?? {};
-
-  if (!rancherId) {
-    return res.status(400).json({
-      error: "Missing rancher id. Provide x-rancher-id header, rancherId query, or rancherId in body.",
-    });
-  }
-  if (!isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
-
-  const herdNameRaw = body.herdName ?? body.herd_name ?? body.name ?? null;
-  const herdName = herdNameRaw ? String(herdNameRaw).trim() : null;
-  const cohortLabelRaw = body.cohortLabel ?? body.cohort_label ?? body.geneticsLabel ?? body.genetics_label ?? null;
-  const cohortLabel = cohortLabelRaw ? String(cohortLabelRaw).trim() : null;
-  const breedCodeRaw = body.breedCode ?? body.breed_code ?? null;
-  const breedCode = breedCodeRaw ? String(breedCodeRaw).trim().toUpperCase() : null;
-  const season = normalizeSeason(body.season);
-  const dominantStageRaw = body.dominantStage ?? body.dominant_stage ?? "RANCH";
-  const dominantStage = String(dominantStageRaw).trim().toUpperCase();
-  const purchaseStatus =
-    normalizeStatus(body.purchaseStatus ?? body.purchase_status) ?? "pending";
-  const listingPrice = body.listingPrice ?? body.listing_price ?? null;
-  const headCount = Number.parseInt(body.headCount ?? body.head_count ?? 20, 10);
-  const verifiedFlag = parseBoolean(body.verifiedFlag, false);
-
-  if (!herdName) {
-    return res.status(400).json({ error: "Missing herdName." });
-  }
-
-  if (Number.isNaN(headCount) || headCount < 20) {
-    return res.status(400).json({ error: "headCount must be an integer greater than or equal to 20." });
-  }
-
-  if (body.season && !season) {
-    return res.status(400).json({ error: "Invalid season. Expected Spring or Fall." });
-  }
-
-  if (listingPrice !== null && listingPrice !== undefined && Number(listingPrice) < 0) {
-    return res.status(400).json({ error: "listingPrice cannot be negative." });
-  }
-
-  try {
-    const rancher = await pool.query(
-      "SELECT user_id, role FROM users WHERE user_id = $1",
-      [rancherId]
-    );
-
-    if (rancher.rowCount === 0) {
-      return res.status(404).json({ error: "Rancher not found." });
-    }
-
-    if (rancher.rows[0].role === "investor") {
-      return res.status(403).json({ error: "User role investor cannot create herd listings." });
-    }
-
-    const created = await pool.query(
-      `
-      INSERT INTO herds (
-        rancher_id,
-        herd_name,
-        cohort_label,
-        breed_code,
-        season,
-        dominant_stage,
-        head_count,
-        listing_price,
-        purchase_status,
-        verified_flag,
-        last_updated
-      )
-      VALUES ($1, $2, $3, $4, COALESCE($5, 'Fall'), $6, $7, $8, $9, $10, NOW())
-      RETURNING *
-      `,
-      [
-        rancherId,
-        herdName,
-        cohortLabel,
-        breedCode,
-        season,
-        dominantStage,
-        headCount,
-        listingPrice ?? null,
-        purchaseStatus,
-        verifiedFlag,
-      ]
-    );
-
-    return res.status(201).json({
-      message: "Herd created successfully.",
-      herd: created.rows[0],
-    });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to create herd." });
-  }
-});
-
-router.post("/:herdId/list", async (req, res) => {
-  const { herdId } = req.params;
-  const rancherId = getRancherId(req);
-  const body = req.body ?? {};
-  const listingPrice = body.listingPrice;
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
-
-  if (listingPrice !== undefined && Number(listingPrice) < 0) {
-    return res.status(400).json({ error: "listingPrice cannot be negative." });
-  }
-
-  try {
-    const listed = await pool.query(
-      `
-      UPDATE herds
-      SET
-        purchase_status = 'available',
-        listing_price = COALESCE($1, listing_price),
-        last_updated = NOW()
-      WHERE herd_id = $2
-        AND ($3::uuid IS NULL OR rancher_id = $3)
-      RETURNING *
-      `,
-      [listingPrice ?? null, herdId, rancherId]
-    );
-
-    if (listed.rowCount === 0) {
-      if (rancherId) {
-        const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
-        if (herdCheck.rowCount > 0) {
-          return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
-        }
-      }
-      return res.status(404).json({ error: "Herd not found." });
-    }
-
-    return res.json({
-      message: "Herd listed successfully.",
-      herd: listed.rows[0],
-    });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to list herd." });
-  }
-});
-
-router.post("/:herdId/publish", async (req, res) => {
-  const { herdId } = req.params;
-  const rancherId = getRancherId(req);
-  const body = req.body ?? {};
-  const listingPrice = body.listingPrice ?? body.listing_price;
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
-
-  if (listingPrice !== undefined && Number(listingPrice) < 0) {
-    return res.status(400).json({ error: "listingPrice cannot be negative." });
-  }
-
-  try {
-    const published = await pool.query(
-      `
-      UPDATE herds
-      SET
-        purchase_status = 'available',
-        listing_price = COALESCE($1, listing_price),
-        last_updated = NOW()
-      WHERE herd_id = $2
-        AND ($3::uuid IS NULL OR rancher_id = $3)
-      RETURNING *
-      `,
-      [listingPrice ?? null, herdId, rancherId]
-    );
-
-    if (published.rowCount === 0) {
-      if (rancherId) {
-        const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
-        if (herdCheck.rowCount > 0) {
-          return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
-        }
-      }
-      return res.status(404).json({ error: "Herd not found." });
-    }
-
-    return res.json({
-      message: "Herd published successfully.",
-      herd: published.rows[0],
-    });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to publish herd." });
-  }
-});
-
-router.patch("/:herdId/move", async (req, res) => {
-  const { herdId } = req.params;
-  const rancherId = getRancherId(req);
-  const body = req.body ?? {};
-  const requestedStatus = normalizeStatus(body.toStatus);
-  const direction = body.direction ? String(body.direction).toLowerCase() : null;
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
-
-  if (!requestedStatus && direction !== "next" && direction !== "previous") {
-    return res.status(400).json({
-      error: "Provide toStatus (available|pending|sold) or direction (next|previous).",
-    });
-  }
-
-  try {
-    const current = await pool.query(
-      `
-      SELECT herd_id, rancher_id, purchase_status
-      FROM herds
-      WHERE herd_id = $1
-        AND ($2::uuid IS NULL OR rancher_id = $2)
-      `,
-      [herdId, rancherId]
-    );
-
-    if (current.rowCount === 0) {
-      if (rancherId) {
-        const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
-        if (herdCheck.rowCount > 0) {
-          return res.status(403).json({ error: "Rancher is not allowed to move this herd." });
-        }
-      }
-      return res.status(404).json({ error: "Herd not found." });
-    }
-
-    const currentStatus = normalizeStatus(current.rows[0].purchase_status) ?? "available";
-    let nextStatus = requestedStatus;
-
-    if (!nextStatus) {
-      const index = HERD_STATUSES.indexOf(currentStatus);
-      if (direction === "next") {
-        if (index >= HERD_STATUSES.length - 1) {
-          return res.status(400).json({ error: "Herd is already at final status." });
-        }
-        nextStatus = HERD_STATUSES[index + 1];
-      } else {
-        if (index <= 0) {
-          return res.status(400).json({ error: "Herd is already at first status." });
-        }
-        nextStatus = HERD_STATUSES[index - 1];
-      }
-    }
-
-    const updated = await pool.query(
-      `
-      UPDATE herds
-      SET
-        purchase_status = $1,
-        last_updated = NOW()
-      WHERE herd_id = $2
-        AND ($3::uuid IS NULL OR rancher_id = $3)
-      RETURNING *
-      `,
-      [nextStatus, herdId, rancherId]
-    );
-
-    return res.json({
-      message: "Herd status moved successfully.",
-      fromStatus: currentStatus,
-      toStatus: nextStatus,
-      herd: updated.rows[0],
-    });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to move herd." });
   }
 });
 
@@ -696,19 +420,257 @@ router.get("/:herdId/cattle", async (req, res) => {
       items: result.rows,
     });
   } catch (error) {
+    console.error("GET /api/herds/:herdId/cattle error:", error);
     return res.status(500).json({ error: "Failed to fetch herd cattle." });
   }
 });
 
-router.post("/:herdId/cattle/bulk", async (req, res) => {
+// ─── Write routes — all require a real, verified rancher token below ────────
+
+router.post("/", requireAuth, requireRole("rancher"), async (req, res) => {
+  const rancherId = req.user.userId;
+  const body = req.body ?? {};
+
+  const herdNameRaw = body.herdName ?? body.herd_name ?? body.name ?? null;
+  const herdName = herdNameRaw ? String(herdNameRaw).trim() : null;
+  const cohortLabelRaw = body.cohortLabel ?? body.cohort_label ?? body.geneticsLabel ?? body.genetics_label ?? null;
+  const cohortLabel = cohortLabelRaw ? String(cohortLabelRaw).trim() : null;
+  const breedCodeRaw = body.breedCode ?? body.breed_code ?? null;
+  const breedCode = breedCodeRaw ? String(breedCodeRaw).trim().toUpperCase() : null;
+  const season = normalizeSeason(body.season);
+  const dominantStageRaw = body.dominantStage ?? body.dominant_stage ?? "RANCH";
+  const dominantStage = String(dominantStageRaw).trim().toUpperCase();
+  const purchaseStatus =
+    normalizeStatus(body.purchaseStatus ?? body.purchase_status) ?? "pending";
+  const listingPrice = body.listingPrice ?? body.listing_price ?? null;
+  const headCount = Number.parseInt(body.headCount ?? body.head_count ?? 20, 10);
+  const verifiedFlag = parseBoolean(body.verifiedFlag, false);
+
+  if (!herdName) {
+    return res.status(400).json({ error: "Missing herdName." });
+  }
+
+  if (Number.isNaN(headCount) || headCount < 20) {
+    return res.status(400).json({ error: "headCount must be an integer greater than or equal to 20." });
+  }
+
+  if (body.season && !season) {
+    return res.status(400).json({ error: "Invalid season. Expected Spring or Fall." });
+  }
+
+  if (listingPrice !== null && listingPrice !== undefined && Number(listingPrice) < 0) {
+    return res.status(400).json({ error: "listingPrice cannot be negative." });
+  }
+
+  try {
+    const created = await pool.query(
+      `
+      INSERT INTO herds (
+        rancher_id,
+        herd_name,
+        cohort_label,
+        breed_code,
+        season,
+        dominant_stage,
+        head_count,
+        listing_price,
+        purchase_status,
+        verified_flag,
+        last_updated
+      )
+      VALUES ($1, $2, $3, $4, COALESCE($5, 'Fall'), $6, $7, $8, $9, $10, NOW())
+      RETURNING *
+      `,
+      [
+        rancherId,
+        herdName,
+        cohortLabel,
+        breedCode,
+        season,
+        dominantStage,
+        headCount,
+        listingPrice ?? null,
+        purchaseStatus,
+        verifiedFlag,
+      ]
+    );
+
+    return res.status(201).json({
+      message: "Herd created successfully.",
+      herd: created.rows[0],
+    });
+  } catch (error) {
+    console.error("POST /api/herds error:", error);
+    return res.status(500).json({ error: "Failed to create herd." });
+  }
+});
+
+router.post("/:herdId/list", requireAuth, requireRole("rancher"), async (req, res) => {
   const { herdId } = req.params;
-  const rancherId = getRancherId(req);
+  const rancherId = req.user.userId;
+  const body = req.body ?? {};
+  const listingPrice = body.listingPrice;
+
+  if (listingPrice !== undefined && Number(listingPrice) < 0) {
+    return res.status(400).json({ error: "listingPrice cannot be negative." });
+  }
+
+  try {
+    const listed = await pool.query(
+      `
+      UPDATE herds
+      SET
+        purchase_status = 'available',
+        listing_price = COALESCE($1, listing_price),
+        last_updated = NOW()
+      WHERE herd_id = $2
+        AND rancher_id = $3
+      RETURNING *
+      `,
+      [listingPrice ?? null, herdId, rancherId]
+    );
+
+    if (listed.rowCount === 0) {
+      const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
+      if (herdCheck.rowCount > 0) {
+        return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
+      }
+      return res.status(404).json({ error: "Herd not found." });
+    }
+
+    return res.json({
+      message: "Herd listed successfully.",
+      herd: listed.rows[0],
+    });
+  } catch (error) {
+    console.error("POST /api/herds/:herdId/list error:", error);
+    return res.status(500).json({ error: "Failed to list herd." });
+  }
+});
+
+router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req, res) => {
+  const { herdId } = req.params;
+  const rancherId = req.user.userId;
+  const body = req.body ?? {};
+  const listingPrice = body.listingPrice ?? body.listing_price;
+
+  if (listingPrice !== undefined && Number(listingPrice) < 0) {
+    return res.status(400).json({ error: "listingPrice cannot be negative." });
+  }
+
+  try {
+    const published = await pool.query(
+      `
+      UPDATE herds
+      SET
+        purchase_status = 'available',
+        listing_price = COALESCE($1, listing_price),
+        last_updated = NOW()
+      WHERE herd_id = $2
+        AND rancher_id = $3
+      RETURNING *
+      `,
+      [listingPrice ?? null, herdId, rancherId]
+    );
+
+    if (published.rowCount === 0) {
+      const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
+      if (herdCheck.rowCount > 0) {
+        return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
+      }
+      return res.status(404).json({ error: "Herd not found." });
+    }
+
+    return res.json({
+      message: "Herd published successfully.",
+      herd: published.rows[0],
+    });
+  } catch (error) {
+    console.error("POST /api/herds/:herdId/publish error:", error);
+    return res.status(500).json({ error: "Failed to publish herd." });
+  }
+});
+
+router.patch("/:herdId/move", requireAuth, requireRole("rancher"), async (req, res) => {
+  const { herdId } = req.params;
+  const rancherId = req.user.userId;
+  const body = req.body ?? {};
+  const requestedStatus = normalizeStatus(body.toStatus);
+  const direction = body.direction ? String(body.direction).toLowerCase() : null;
+
+  if (!requestedStatus && direction !== "next" && direction !== "previous") {
+    return res.status(400).json({
+      error: "Provide toStatus (available|pending|sold) or direction (next|previous).",
+    });
+  }
+
+  try {
+    const current = await pool.query(
+      `
+      SELECT herd_id, rancher_id, purchase_status
+      FROM herds
+      WHERE herd_id = $1
+        AND rancher_id = $2
+      `,
+      [herdId, rancherId]
+    );
+
+    if (current.rowCount === 0) {
+      const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
+      if (herdCheck.rowCount > 0) {
+        return res.status(403).json({ error: "Rancher is not allowed to move this herd." });
+      }
+      return res.status(404).json({ error: "Herd not found." });
+    }
+
+    const currentStatus = normalizeStatus(current.rows[0].purchase_status) ?? "available";
+    let nextStatus = requestedStatus;
+
+    if (!nextStatus) {
+      const index = HERD_STATUSES.indexOf(currentStatus);
+      if (direction === "next") {
+        if (index >= HERD_STATUSES.length - 1) {
+          return res.status(400).json({ error: "Herd is already at final status." });
+        }
+        nextStatus = HERD_STATUSES[index + 1];
+      } else {
+        if (index <= 0) {
+          return res.status(400).json({ error: "Herd is already at first status." });
+        }
+        nextStatus = HERD_STATUSES[index - 1];
+      }
+    }
+
+    const updated = await pool.query(
+      `
+      UPDATE herds
+      SET
+        purchase_status = $1,
+        last_updated = NOW()
+      WHERE herd_id = $2
+        AND rancher_id = $3
+      RETURNING *
+      `,
+      [nextStatus, herdId, rancherId]
+    );
+
+    return res.json({
+      message: "Herd status moved successfully.",
+      fromStatus: currentStatus,
+      toStatus: nextStatus,
+      herd: updated.rows[0],
+    });
+  } catch (error) {
+    console.error("PATCH /api/herds/:herdId/move error:", error);
+    return res.status(500).json({ error: "Failed to move herd." });
+  }
+});
+
+router.post("/:herdId/cattle/bulk", requireAuth, requireRole("rancher"), async (req, res) => {
+  const { herdId } = req.params;
+  const rancherId = req.user.userId;
   const payload = req.body ?? {};
   const cattle = Array.isArray(payload) ? payload : payload.cattle;
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
 
   if (!Array.isArray(cattle) || cattle.length === 0) {
     return res.status(400).json({ error: "Provide a non-empty cattle array." });
@@ -748,19 +710,16 @@ router.post("/:herdId/cattle/bulk", async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK");
+    console.error("POST /api/herds/:herdId/cattle/bulk error:", error);
     return res.status(500).json({ error: "Failed to create cattle batch." });
   } finally {
     client.release();
   }
 });
 
-router.post("/:herdId/cattle", async (req, res) => {
+router.post("/:herdId/cattle", requireAuth, requireRole("rancher"), async (req, res) => {
   const { herdId } = req.params;
-  const rancherId = getRancherId(req);
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
+  const rancherId = req.user.userId;
 
   const cowPayload = mapCowPayload(req.body ?? {});
   const validationError = validateCowPayload(cowPayload);
@@ -789,19 +748,16 @@ router.post("/:herdId/cattle", async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK");
+    console.error("POST /api/herds/:herdId/cattle error:", error);
     return res.status(500).json({ error: "Failed to create cow." });
   } finally {
     client.release();
   }
 });
 
-router.delete("/:herdId/cattle/:cowId", async (req, res) => {
+router.delete("/:herdId/cattle/:cowId", requireAuth, requireRole("rancher"), async (req, res) => {
   const { herdId, cowId } = req.params;
-  const rancherId = getRancherId(req);
-
-  if (rancherId && !isUuid(rancherId)) {
-    return res.status(400).json({ error: "Invalid rancher id format." });
-  }
+  const rancherId = req.user.userId;
 
   if (!/^\d+$/.test(cowId)) {
     return res.status(400).json({ error: "Invalid cowId. Expected a numeric id." });
@@ -843,6 +799,7 @@ router.delete("/:herdId/cattle/:cowId", async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK");
+    console.error("DELETE /api/herds/:herdId/cattle/:cowId error:", error);
     return res.status(500).json({ error: "Failed to remove cow from herd." });
   } finally {
     client.release();

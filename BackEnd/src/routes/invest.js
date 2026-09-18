@@ -1,6 +1,7 @@
-import express from "express";
+﻿import express from "express";
 import Stripe from "stripe";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -67,7 +68,7 @@ async function recordInvestment({ herdId, investorSlug, tokensToBuy }) {
   }
 }
 
-// ─── GET /api/invest/:herdId — fetch herd info for the buy form ───────────────
+// ─── GET /api/invest/:herdId — fetch herd info for the buy form (public) ──────
 router.get("/:herdId", async (req, res) => {
   try {
     const { herdId } = req.params;
@@ -123,13 +124,18 @@ router.get("/:herdId", async (req, res) => {
 
 // ─── POST /api/invest/create-payment-intent ───────────────────────────────────
 // Step 1 of the Stripe flow.
-// Body: { herdId, investorSlug, tokensToBuy }
+// Body: { herdId, tokensToBuy }
+// investorSlug is no longer accepted from the body - it is always the
+// verified token holder, so the resulting Stripe PaymentIntent's metadata
+// (and everything /confirm and /webhook later trust) is tied to a real,
+// authenticated investor, not whatever the client claims.
 // Returns: { clientSecret, paymentIntentId, amountUsd, totalCents }
-router.post("/create-payment-intent", async (req, res) => {
-  const { herdId, investorSlug, tokensToBuy } = req.body;
+router.post("/create-payment-intent", requireAuth, requireRole("investor"), async (req, res) => {
+  const { herdId, tokensToBuy } = req.body;
+  const investorSlug = req.user.slug;
 
-  if (!herdId || !investorSlug || !tokensToBuy || tokensToBuy < 1) {
-    return res.status(400).json({ error: "herdId, investorSlug, and tokensToBuy are required" });
+  if (!herdId || !tokensToBuy || tokensToBuy < 1) {
+    return res.status(400).json({ error: "herdId and tokensToBuy are required" });
   }
 
   try {
@@ -155,15 +161,6 @@ router.post("/create-payment-intent", async (req, res) => {
 
     if (remaining < tokensToBuy) {
       return res.status(409).json({ error: `Only ${remaining} tokens remaining` });
-    }
-
-    // Validate investor exists
-    const userRes = await pool.query(
-      "SELECT user_id FROM users WHERE slug = $1 AND role = 'investor'",
-      [investorSlug]
-    );
-    if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: "Investor not found" });
     }
 
     const pricePerToken = parseFloat(r.listing_price) / totalSupply;
@@ -202,8 +199,10 @@ router.post("/create-payment-intent", async (req, res) => {
 // ─── POST /api/invest/confirm ─────────────────────────────────────────────────
 // Step 2 — called by the frontend after Stripe confirms the card payment.
 // Body: { paymentIntentId }
-// Verifies the PaymentIntent status with Stripe, then records the investment.
-router.post("/confirm", async (req, res) => {
+// Verifies the PaymentIntent status with Stripe, confirms the intent's
+// metadata was actually created for the currently authenticated investor
+// (not just anyone with the paymentIntentId), then records the investment.
+router.post("/confirm", requireAuth, requireRole("investor"), async (req, res) => {
   const { paymentIntentId } = req.body;
 
   if (!paymentIntentId) {
@@ -221,6 +220,11 @@ router.post("/confirm", async (req, res) => {
     }
 
     const { herdId, investorSlug, tokensToBuy } = intent.metadata;
+
+    if (investorSlug !== req.user.slug) {
+      return res.status(403).json({ error: "This payment intent does not belong to you." });
+    }
+
     const tokens = parseInt(tokensToBuy, 10);
 
     // Record the investment in our DB
@@ -241,6 +245,8 @@ router.post("/confirm", async (req, res) => {
 // ─── POST /api/invest/webhook ─────────────────────────────────────────────────
 // Stripe webhook — backup/production path for recording investments.
 // Requires raw body (configured in server.js before the json middleware).
+// This is a server-to-server call authenticated by Stripe's own signature
+// (not a user JWT), so it is intentionally left outside requireAuth.
 // Set STRIPE_WEBHOOK_SECRET in .env after running: stripe listen --forward-to localhost:3000/api/invest/webhook
 router.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];

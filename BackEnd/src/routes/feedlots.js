@@ -1,5 +1,6 @@
-import express from "express";
+﻿import express from "express";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ function shapePendingHerd(row) {
 }
 
 // ─── GET /api/feedlot/pending ─────────────────────────────────────────────────
-// Returns herds that ranchers have listed but no feedlot has claimed yet.
+// Public browse: herds that ranchers have listed but no feedlot has claimed yet.
 router.get("/pending", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -57,20 +58,17 @@ router.get("/pending", async (req, res) => {
 });
 
 // ─── GET /api/feedlot/:slug/dashboard ─────────────────────────────────────────
-// Returns herds claimed by this feedlot (listed or sold).
-router.get("/:slug/dashboard", async (req, res) => {
+// Returns herds claimed by this feedlot (listed or sold). A feedlot may only
+// view its own dashboard - the verified token's slug must match the URL slug.
+router.get("/:slug/dashboard", requireAuth, requireRole("feedlot"), async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // Resolve feedlot user
-    const userRes = await pool.query(
-      "SELECT user_id FROM users WHERE slug = $1 AND role = 'feedlot'",
-      [slug]
-    );
-    if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: `Feedlot user not found: ${slug}` });
+    if (req.user.slug !== slug) {
+      return res.status(403).json({ error: "Feedlot is not allowed to view this dashboard." });
     }
-    const userId = userRes.rows[0].user_id;
+
+    const userId = req.user.userId;
 
     const result = await pool.query(`
       SELECT
@@ -119,12 +117,15 @@ router.get("/:slug/dashboard", async (req, res) => {
 
 // ─── POST /api/feedlot/claim ──────────────────────────────────────────────────
 // Feedlot claims a pending herd and sets the investor percentage.
-// Body: { feedlotSlug: string, herdId: string, investorPct: number (1-100) }
-router.post("/claim", async (req, res) => {
-  const { feedlotSlug, herdId, investorPct } = req.body;
+// Body: { herdId: string, investorPct: number (1-100) }
+// feedlotSlug is no longer accepted from the body - the claiming feedlot is
+// always the verified token holder, never a client-supplied value.
+router.post("/claim", requireAuth, requireRole("feedlot"), async (req, res) => {
+  const { herdId, investorPct } = req.body;
+  const feedlotSlug = req.user.slug;
 
-  if (!feedlotSlug || !herdId || investorPct == null) {
-    return res.status(400).json({ error: "feedlotSlug, herdId, and investorPct are required" });
+  if (!herdId || investorPct == null) {
+    return res.status(400).json({ error: "herdId and investorPct are required" });
   }
 
   const pct = parseFloat(investorPct);
@@ -150,7 +151,7 @@ router.post("/claim", async (req, res) => {
       return res.status(409).json({ error: "Herd is no longer available (already claimed)" });
     }
 
-    // Resolve feedlot user
+    // Resolve feedlot user from the verified token, not the request body
     const userRes = await client.query(
       "SELECT user_id FROM users WHERE slug = $1 AND role = 'feedlot'",
       [feedlotSlug]

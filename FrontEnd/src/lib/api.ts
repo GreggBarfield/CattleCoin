@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Pool,
   Cow,
   CowDetailData,
@@ -12,11 +12,17 @@ import type {
   FeedlotClaimPayload,
   FeedlotClaimResult,
 } from "./types";
+import { getAuthToken, type CurrentUser } from "@/context/AuthContext";
 
 const API_BASE = "/api";
 
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`API ${path} → ${res.status}: ${body}`);
@@ -86,10 +92,15 @@ export async function getHerdForInvest(herdId: string): Promise<HerdInvestInfo |
   }
 }
 
+// NOTE: this posts to /invest, which does not match any route currently in
+// invest.js (that file only has /invest/:herdId, /invest/create-payment-intent,
+// /invest/confirm, /invest/webhook). Left as-is and untouched by the auth
+// work - looks like pre-existing dead/unwired code, flagging for later, not
+// fixing here since it's outside the scope of this pass.
 export async function postInvestment(payload: InvestPayload): Promise<InvestResult> {
   const res = await fetch(`${API_BASE}/invest`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -100,7 +111,6 @@ export async function postInvestment(payload: InvestPayload): Promise<InvestResu
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-import type { CurrentUser } from "@/context/AuthContext";
 
 export async function postLogin(username: string, password: string): Promise<CurrentUser> {
   const res = await fetch(`${API_BASE}/auth/login`, {
@@ -143,7 +153,7 @@ export async function getFeedlotDashboard(slug: string): Promise<FeedlotDashboar
 export async function postFeedlotClaim(payload: FeedlotClaimPayload): Promise<FeedlotClaimResult> {
   const res = await fetch(`${API_BASE}/feedlot/claim`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -206,6 +216,12 @@ export type RancherPublishResult = {
   };
 };
 
+// NOTE: rancherId is kept as a parameter so existing call sites don't need to
+// change yet, but it is no longer sent to the server in any form. Identity is
+// now established solely by the JWT attached via authHeaders() below - the
+// backend derives the rancher from the verified token (req.user.userId),
+// never from a client-supplied header. Once call sites are confirmed clean,
+// this parameter can be dropped as a follow-up cleanup.
 export async function postRancherCreateHerd(
   rancherId: string,
   payload: RancherCreateHerdPayload
@@ -214,7 +230,7 @@ export async function postRancherCreateHerd(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-rancher-id": rancherId,
+      ...authHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -235,7 +251,7 @@ export async function postRancherRegisterCattleBulk(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-rancher-id": rancherId,
+      ...authHeaders(),
     },
     body: JSON.stringify({ cattle }),
   });
@@ -256,7 +272,7 @@ export async function postRancherPublishHerd(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-rancher-id": rancherId,
+      ...authHeaders(),
     },
     body: JSON.stringify(
       listingPrice === undefined ? {} : { listingPrice }
