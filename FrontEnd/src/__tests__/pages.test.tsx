@@ -8,7 +8,7 @@ import { Login } from "@/pages/Login";
 import { SignUp } from "@/pages/SignUp";
 import { WelcomePage } from "@/pages/WelcomePage";
 
-// ── helpers ────────────────────────────────────────────────────────────────────
+// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function mockFetchOk(body: unknown) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -32,7 +32,7 @@ function Wrapper({ children, initialPath = "/login" }: { children: React.ReactNo
   );
 }
 
-// ── Login ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("Login page", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
@@ -66,7 +66,7 @@ describe("Login page", () => {
   });
 
   test("submits POST to /api/auth/login with username and password", async () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     const mockFn = mockFetchOk(user);
     vi.stubGlobal("fetch", mockFn);
     render(<Wrapper><Login /></Wrapper>);
@@ -87,10 +87,10 @@ describe("Login page", () => {
   });
 
   test("redirects to home when already logged in", async () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     localStorage.setItem("cattlecoin_user", JSON.stringify(user));
 
-    // We just verify no crash — redirect happens via useNavigate
+    // We just verify no crash â€” redirect happens via useNavigate
     expect(() =>
       render(<Wrapper><Login /></Wrapper>)
     ).not.toThrow();
@@ -102,7 +102,7 @@ describe("Login page", () => {
   });
 });
 
-// ── SignUp ─────────────────────────────────────────────────────────────────────
+// â”€â”€ SignUp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("SignUp page", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
@@ -119,7 +119,7 @@ describe("SignUp page", () => {
     fireEvent.change(screen.getByPlaceholderText(/e\.g\. johndoe/i), {
       target: { value: "testuser" },
     });
-    // Fill password fields — there are two ••••••••  inputs
+    // Fill password fields â€” there are two â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢  inputs
     const pwFields = screen.getAllByPlaceholderText("••••••••");
     fireEvent.change(pwFields[0], { target: { value: "abc123" } });
     fireEvent.change(pwFields[1], { target: { value: "different" } });
@@ -160,7 +160,7 @@ describe("SignUp page", () => {
   });
 
   test("submits POST to /api/auth/signup on valid form", async () => {
-    const user: CurrentUser = { userId: "2", slug: "bob", role: "investor", email: "b@test.com" };
+    const user: CurrentUser = { userId: "2", slug: "bob", role: "investor", email: "b@test.com", token: "test-token" };
     const mockFn = mockFetchOk(user);
     vi.stubGlobal("fetch", mockFn);
     render(<Wrapper initialPath="/signup"><SignUp /></Wrapper>);
@@ -207,7 +207,7 @@ describe("SignUp page", () => {
   });
 });
 
-// ── WelcomePage ────────────────────────────────────────────────────────────────
+// â”€â”€ WelcomePage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("WelcomePage", () => {
   beforeEach(() => localStorage.clear());
 

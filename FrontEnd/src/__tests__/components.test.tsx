@@ -16,7 +16,7 @@ import { AppShell } from "@/components/layout/AppShell";
 
 import type { Pool, BudgetItem, StageBreakdown, LifecycleEvent } from "@/lib/types";
 
-// ── Shared mock pool ───────────────────────────────────────────────────────────
+// â”€â”€ Shared mock pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const makePool = (overrides: Partial<Pool> = {}): Pool => ({
   id: "herd-1",
   herdId: "herd-1",
@@ -42,7 +42,7 @@ const makePool = (overrides: Partial<Pool> = {}): Pool => ({
   ...overrides,
 });
 
-// ── StageBadge ─────────────────────────────────────────────────────────────────
+// â”€â”€ StageBadge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("StageBadge", () => {
   test("renders RANCH stage text", () => {
     render(<StageBadge stage="RANCH" />);
@@ -75,7 +75,7 @@ describe("StageBadge", () => {
   });
 });
 
-// ── VerifiedBadge ──────────────────────────────────────────────────────────────
+// â”€â”€ VerifiedBadge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("VerifiedBadge", () => {
   test("renders without label by default", () => {
     const { container } = render(<VerifiedBadge verified={true} />);
@@ -99,7 +99,7 @@ describe("VerifiedBadge", () => {
   });
 });
 
-// ── KpiCard ────────────────────────────────────────────────────────────────────
+// â”€â”€ KpiCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("KpiCard", () => {
   test("renders label and value", () => {
     render(<KpiCard label="Portfolio Value" value="$50,000" />);
@@ -124,7 +124,7 @@ describe("KpiCard", () => {
   });
 });
 
-// ── BudgetBreakdown ────────────────────────────────────────────────────────────
+// â”€â”€ BudgetBreakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("BudgetBreakdown", () => {
   const items: BudgetItem[] = [
     { label: "Purchase Cost", amountUsd: 8000, category: "cost" },
@@ -152,7 +152,7 @@ describe("BudgetBreakdown", () => {
 
   test("shows positive net when revenue > cost", () => {
     render(<BudgetBreakdown items={items} />);
-    // net = 14000 - 10000 = 4000 → $4,000
+    // net = 14000 - 10000 = 4000 â†’ $4,000
     expect(screen.getByText(/\$4,000/)).toBeTruthy();
   });
 
@@ -162,12 +162,12 @@ describe("BudgetBreakdown", () => {
       { label: "Revenue", amountUsd: 5000, category: "revenue" },
     ];
     render(<BudgetBreakdown items={negItems} />);
-    // Net = 5000 - 10000 = -5000 → should show negative
+    // Net = 5000 - 10000 = -5000 â†’ should show negative
     expect(screen.getByText(/-\$5,000/)).toBeTruthy();
   });
 });
 
-// ── PipelineBar ────────────────────────────────────────────────────────────────
+// â”€â”€ PipelineBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("PipelineBar", () => {
   const breakdown: StageBreakdown[] = [
     { stage: "RANCH", pct: 60 },
@@ -184,7 +184,7 @@ describe("PipelineBar", () => {
 
   test("shows percentages in legend", () => {
     render(<PipelineBar breakdown={breakdown} />);
-    // 60% appears in the bar segment AND in the legend — getAllByText handles multiple
+    // 60% appears in the bar segment AND in the legend â€” getAllByText handles multiple
     expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("40%").length).toBeGreaterThan(0);
   });
@@ -200,13 +200,13 @@ describe("PipelineBar", () => {
       { stage: "FEEDLOT", pct: 95 },
     ];
     const { container } = render(<PipelineBar breakdown={tiny} />);
-    // The bar segments themselves — segment with pct<10 renders empty text
+    // The bar segments themselves â€” segment with pct<10 renders empty text
     // Just verify it renders without crashing
     expect(container.querySelector(".flex.h-6")).toBeTruthy();
   });
 });
 
-// ── SupplyChainStepper ─────────────────────────────────────────────────────────
+// â”€â”€ SupplyChainStepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("SupplyChainStepper", () => {
   const events: LifecycleEvent[] = [
     {
@@ -247,12 +247,12 @@ describe("SupplyChainStepper", () => {
 
   test("renders step numbers for non-completed stages", () => {
     render(<SupplyChainStepper currentStage="RANCH" events={[]} />);
-    // stage 1 (RANCH) is current — shows "1"
+    // stage 1 (RANCH) is current â€” shows "1"
     expect(screen.getByText("1")).toBeTruthy();
   });
 });
 
-// ── MyInvestments ──────────────────────────────────────────────────────────────
+// â”€â”€ MyInvestments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("MyInvestments", () => {
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -310,7 +310,7 @@ describe("MyInvestments", () => {
   });
 });
 
-// ── AppShell ───────────────────────────────────────────────────────────────────
+// â”€â”€ AppShell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("AppShell", () => {
   beforeEach(() => localStorage.clear());
 
@@ -330,60 +330,60 @@ describe("AppShell", () => {
   }
 
   test("renders CattleCoin brand name", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     const brands = screen.getAllByText("CattleCoin");
     expect(brands.length).toBeGreaterThan(0);
   });
 
   test("renders Sign out button", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByRole("button", { name: /sign out/i })).toBeTruthy();
   });
 
   test("investor user sees Dashboard and Lots nav links", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /lots/i })).toBeTruthy();
   });
 
   test("rancher user sees My Herds nav link", () => {
-    const user: CurrentUser = { userId: "2", slug: "bob", role: "rancher", email: "b@test.com" };
+    const user: CurrentUser = { userId: "2", slug: "bob", role: "rancher", email: "b@test.com", token: "test-token" };
     renderWithUser(user, "/rancher");
     expect(screen.getByRole("link", { name: /my herds/i })).toBeTruthy();
   });
 
   test("feedlot user sees Feedlot nav link", () => {
-    const user: CurrentUser = { userId: "3", slug: "fl1", role: "feedlot", email: "f@test.com" };
+    const user: CurrentUser = { userId: "3", slug: "fl1", role: "feedlot", email: "f@test.com", token: "test-token" };
     renderWithUser(user, "/feedlot");
     expect(screen.getByRole("link", { name: /feedlot/i })).toBeTruthy();
   });
 
   test("admin user sees Admin nav link", () => {
-    const user: CurrentUser = { userId: "4", slug: "admin1", role: "admin", email: "ad@test.com" };
+    const user: CurrentUser = { userId: "4", slug: "admin1", role: "admin", email: "ad@test.com", token: "test-token" };
     renderWithUser(user, "/admin");
     expect(screen.getByRole("link", { name: /admin/i })).toBeTruthy();
   });
 
   test("displays user slug and role in sidebar", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByText("alice")).toBeTruthy();
-    // Multiple elements may contain "investor" — just verify at least one exists
+    // Multiple elements may contain "investor" â€” just verify at least one exists
     expect(screen.getAllByText(/investor/i).length).toBeGreaterThan(0);
   });
 
   test("logout clears localStorage", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
     expect(localStorage.getItem("cattlecoin_user")).toBeNull();
   });
 
   test("renders Outlet content", () => {
-    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com" };
+    const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByText("page content")).toBeTruthy();
   });

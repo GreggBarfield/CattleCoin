@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Pool,
   Cow,
   CowDetailData,
@@ -216,14 +216,10 @@ export type RancherPublishResult = {
   };
 };
 
-// NOTE: rancherId is kept as a parameter so existing call sites don't need to
-// change yet, but it is no longer sent to the server in any form. Identity is
-// now established solely by the JWT attached via authHeaders() below - the
-// backend derives the rancher from the verified token (req.user.userId),
-// never from a client-supplied header. Once call sites are confirmed clean,
-// this parameter can be dropped as a follow-up cleanup.
+// Identity is established solely by the JWT attached via authHeaders() below -
+// the backend derives the rancher from the verified token (req.user.userId),
+// never from a client-supplied parameter.
 export async function postRancherCreateHerd(
-  rancherId: string,
   payload: RancherCreateHerdPayload
 ): Promise<RancherCreateHerdResult> {
   const res = await fetch(`${API_BASE}/herds`, {
@@ -243,7 +239,6 @@ export async function postRancherCreateHerd(
 }
 
 export async function postRancherRegisterCattleBulk(
-  rancherId: string,
   herdId: string,
   cattle: RancherBulkCowPayload[]
 ): Promise<RancherBulkRegisterResult> {
@@ -264,7 +259,6 @@ export async function postRancherRegisterCattleBulk(
 }
 
 export async function postRancherPublishHerd(
-  rancherId: string,
   herdId: string,
   listingPrice?: number
 ): Promise<RancherPublishResult> {

@@ -23,7 +23,7 @@ import {
   type RancherBulkCowPayload,
 } from "@/lib/api";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Season = "Spring" | "Fall";
 
@@ -56,7 +56,7 @@ interface QueuedCow extends CowFormData {
   _queueId: string;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SEASON_OPTIONS: { value: Season; label: string }[] = [
   { value: "Spring", label: "Spring" },
@@ -77,7 +77,7 @@ const EMPTY_HERD: HerdFormData = {
   sale_location: "",
 };
 
-// ── StepIndicator ─────────────────────────────────────────────────────────────
+// â”€â”€ StepIndicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -125,7 +125,7 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-// ── PillGroup ─────────────────────────────────────────────────────────────────
+// â”€â”€ PillGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PillGroup<T extends string>({
   options,
@@ -161,7 +161,7 @@ function PillGroup<T extends string>({
   );
 }
 
-// ── Field wrapper ─────────────────────────────────────────────────────────────
+// â”€â”€ Field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Field({
   label,
@@ -186,7 +186,7 @@ function Field({
   );
 }
 
-// ── CSV row → QueuedCow ───────────────────────────────────────────────────────
+// â”€â”€ CSV row â†’ QueuedCow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
   const rawSuffix = String(row.official_id_suffix ?? row.official_id ?? "").replace(/\D/g, "").slice(0, 12);
@@ -210,7 +210,7 @@ function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
   };
 }
 
-// ── Rancher (main page) ───────────────────────────────────────────────────────
+// â”€â”€ Rancher (main page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function Rancher() {
   const { currentUser } = useAuth();
@@ -238,7 +238,7 @@ export function Rancher() {
   const rancherId = currentUser?.userId ?? null;
   const cattleLocked = cattleRegistered || isRegisteringCattle;
 
-  // ── Step 1 handlers ──────────────────────────────────────────────────────────
+  // â”€â”€ Step 1 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function setHerdField<K extends keyof HerdFormData>(key: K, val: HerdFormData[K]) {
     setHerd((h) => ({ ...h, [key]: val }));
@@ -278,7 +278,7 @@ export function Rancher() {
       const listingPrice = Number.parseFloat(herd.listing_price);
       const headCount = Number.parseInt(herd.head_count, 10);
 
-      const result = await postRancherCreateHerd(rancherId, {
+      const result = await postRancherCreateHerd({
         name: herd.name.trim(),
         genetics_label: herd.genetics_label.trim(),
         breed_code: herd.breed_code.trim().toUpperCase(),
@@ -298,7 +298,7 @@ export function Rancher() {
     }
   }
 
-  // ── Step 2 handlers ──────────────────────────────────────────────────────────
+  // â”€â”€ Step 2 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleCsvChunk(rows: Record<string, string | undefined>[]) {
     pendingRowsRef.current.push(...rows.map(rowToQueuedCow));
@@ -358,7 +358,7 @@ export function Rancher() {
 
     try {
       setIsRegisteringCattle(true);
-      await postRancherRegisterCattleBulk(rancherId, createdHerdId, cattlePayload);
+      await postRancherRegisterCattleBulk(createdHerdId, cattlePayload);
       setCattleRegistered(true);
       setStep(3);
     } catch (err: unknown) {
@@ -368,7 +368,7 @@ export function Rancher() {
     }
   }
 
-  // ── Step 3 handlers ──────────────────────────────────────────────────────────
+  // â”€â”€ Step 3 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handlePublish() {
     if (cowQueue.length === 0) return;
@@ -386,7 +386,6 @@ export function Rancher() {
       setIsPublishing(true);
       const listingPrice = Number.parseFloat(herdSnapshot?.listing_price ?? herd.listing_price);
       await postRancherPublishHerd(
-        rancherId,
         createdHerdId,
         Number.isFinite(listingPrice) ? listingPrice : undefined
       );
@@ -414,7 +413,7 @@ export function Rancher() {
     setCattleError(null);
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (published) {
     return (
@@ -451,7 +450,7 @@ export function Rancher() {
 
       <Separator />
 
-      {/* ── Step 1: Create Herd ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Step 1: Create Herd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {step === 1 && (
         <Card>
           <CardHeader>
@@ -464,7 +463,7 @@ export function Rancher() {
             <form onSubmit={handleCreateHerd} className="space-y-4">
               <Field label="Lot Name" required>
                 <Input
-                  placeholder="e.g. Spring Angus — 2026"
+                  placeholder="e.g. Spring Angus â€” 2026"
                   value={herd.name}
                   disabled={isCreatingHerd}
                   onChange={(e) => setHerdField("name", e.target.value)}
@@ -474,7 +473,7 @@ export function Rancher() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Genetics Label" required>
                   <Input
-                    placeholder="e.g. Angus × Hereford"
+                    placeholder="e.g. Angus Ã— Hereford"
                     value={herd.genetics_label}
                     disabled={isCreatingHerd}
                     onChange={(e) => setHerdField("genetics_label", e.target.value)}
@@ -580,7 +579,7 @@ export function Rancher() {
         </Card>
       )}
 
-      {/* ── Step 2: Upload Cattle ───────────────────────────────────────────── */}
+      {/* â”€â”€ Step 2: Upload Cattle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {step === 2 && (
         <div className="space-y-4">
           <Card>
@@ -631,7 +630,7 @@ export function Rancher() {
           {cowQueue.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">
-                Imported — {cowQueue.length}{" "}
+                Imported â€” {cowQueue.length}{" "}
                 {cowQueue.length === 1 ? "cow" : "cows"}
               </p>
               {cowQueue.map((c) => (
@@ -710,7 +709,7 @@ export function Rancher() {
         </div>
       )}
 
-      {/* ── Step 3: Review & Publish ────────────────────────────────────────── */}
+      {/* â”€â”€ Step 3: Review & Publish â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {step === 3 && herdSnapshot && (
         <div className="space-y-4">
           {/* Herd summary */}

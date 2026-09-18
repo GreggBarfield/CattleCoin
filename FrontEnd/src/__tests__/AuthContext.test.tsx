@@ -9,16 +9,17 @@ const mockUser: CurrentUser = {
   slug:   "alice",
   role:   "investor",
   email:  "alice@test.com",
+  token:  "test-token",
 };
 
-// ── Wrapper to read context values ───────────────────────────────────────────
+// â”€â”€ Wrapper to read context values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TestConsumer({ onValue }: { onValue: (v: ReturnType<typeof useAuth>) => void }) {
   const ctx = useAuth();
   React.useEffect(() => { onValue(ctx); }, [ctx, onValue]);
   return null;
 }
 
-// ─── AuthProvider ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ AuthProvider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("AuthProvider", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -83,22 +84,22 @@ describe("AuthProvider", () => {
   });
 });
 
-// ─── homePathForRole ──────────────────────────────────────────────────────────
+// â”€â”€â”€ homePathForRole â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("homePathForRole", () => {
-  test("investor → /investor/:slug/dashboard", () => {
+  test("investor â†’ /investor/:slug/dashboard", () => {
     const user: CurrentUser = { ...mockUser, role: "investor", slug: "alice" };
     expect(homePathForRole(user)).toBe("/investor/alice/dashboard");
   });
 
-  test("rancher → /rancher", () => {
+  test("rancher â†’ /rancher", () => {
     expect(homePathForRole({ ...mockUser, role: "rancher" })).toBe("/rancher");
   });
 
-  test("feedlot → /feedlot", () => {
+  test("feedlot â†’ /feedlot", () => {
     expect(homePathForRole({ ...mockUser, role: "feedlot" })).toBe("/feedlot");
   });
 
-  test("admin → /admin", () => {
+  test("admin â†’ /admin", () => {
     expect(homePathForRole({ ...mockUser, role: "admin" })).toBe("/admin");
   });
 });
