@@ -13,6 +13,7 @@ import usersRoutes from "./routes/users.js";
 import rancherRoutes from "./routes/rancher.js";
 import herdsRoutes from "./routes/herds.js";
 import cattleRoutes from "./routes/cattle.js";
+import blockchainRoutes from "./routes/blockchain.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use("/api/users",    usersRoutes);     // user list by role
 app.use("/api/rancher", rancherRoutes);
 app.use("/api/herds", herdsRoutes);
 app.use("/api/cattle", cattleRoutes);
+app.use("/api/blockchain", blockchainRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/api/health", async (_req, res) => {

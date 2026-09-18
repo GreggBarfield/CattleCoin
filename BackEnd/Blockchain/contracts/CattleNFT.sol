@@ -1,4 +1,4 @@
- // SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -18,7 +18,7 @@ contract CattleNFT is ERC721, Ownable {
 
     constructor()
         ERC721("CattleCoin", "COW")
-        Ownable()   // ✅ FIXED (no args)
+        Ownable()   // no args - OZ v4 style, owner defaults to deployer
     {}
 
     function createCattle(
@@ -27,9 +27,7 @@ contract CattleNFT is ERC721, Ownable {
         string memory dataHash
     ) external onlyOwner {
         uint256 tokenId = nextTokenId++;
-
         _mint(to, tokenId);
-
         cattleData[tokenId] = Cattle(herdId, dataHash);
         herdToCattle[herdId].push(tokenId);
     }
@@ -53,10 +51,8 @@ contract CattleNFT is ERC721, Ownable {
         external
     {
         uint256[] memory cattleList = herdToCattle[herdId];
-
         for (uint i = 0; i < cattleList.length; i++) {
-            require(ownerOf(cattleList[i]) == from, "Not owner");
-            _transfer(from, to, cattleList[i]);
+            transferFrom(from, to, cattleList[i]);
         }
     }
 }

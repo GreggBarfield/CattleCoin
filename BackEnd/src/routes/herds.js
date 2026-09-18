@@ -1,6 +1,8 @@
 import express from "express";
 import pool from "../db.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
+import { randomUUID } from "crypto";
+import { deployHerdToken } from "../blockchain/herdToken.js";
 
 const router = express.Router();
 const HERD_STATUSES = ["available", "pending", "sold"];
@@ -548,6 +550,13 @@ router.post("/:herdId/list", requireAuth, requireRole("rancher"), async (req, re
   }
 });
 
+// Publish now also tokenizes the herd on-chain: the first time a given herd
+// is published, this deploys a fresh HerdToken (ERC20) contract representing
+// investor shares, waits for it to confirm on Polygon Amoy, and records the
+// resulting contract address on the herd's token_pools row. If that row
+// already has a contract_address (already tokenized on a previous publish),
+// this skips deploying a second contract and just reports the existing one -
+// safe to call more than once.
 router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
@@ -559,6 +568,60 @@ router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req,
   }
 
   try {
+    const herdRow = await pool.query(
+      `SELECT herd_id, rancher_id, head_count, breed_code, herd_name FROM herds WHERE herd_id = $1`,
+      [herdId]
+    );
+
+    if (herdRow.rowCount === 0) {
+      return res.status(404).json({ error: "Herd not found." });
+    }
+    if (herdRow.rows[0].rancher_id !== rancherId) {
+      return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
+    }
+
+    const { head_count: headCount, breed_code: breedCode, herd_name: herdName } = herdRow.rows[0];
+
+    const poolRow = await pool.query(
+      `SELECT pool_id, total_supply, contract_address FROM token_pools WHERE herd_id = $1`,
+      [herdId]
+    );
+
+    let poolInfo;
+    let deployResult = null;
+
+    if (poolRow.rowCount > 0 && poolRow.rows[0].contract_address) {
+      // Already tokenized on a previous publish - report the existing
+      // contract instead of deploying a new one.
+      poolInfo = poolRow.rows[0];
+    } else {
+      const totalSupply = poolRow.rowCount > 0
+        ? Number(poolRow.rows[0].total_supply)
+        : headCount;
+
+      // Slow step - talks to Polygon Amoy. Done before any DB write below,
+      // so a failed/slow chain call never leaves the herd marked published
+      // without a token behind it.
+      deployResult = await deployHerdToken({ herdId, herdName, breedCode, totalSupply });
+
+      if (poolRow.rowCount > 0) {
+        const updated = await pool.query(
+          `UPDATE token_pools SET contract_address = $1 WHERE herd_id = $2
+           RETURNING pool_id, total_supply, contract_address`,
+          [deployResult.contractAddress, herdId]
+        );
+        poolInfo = updated.rows[0];
+      } else {
+        const inserted = await pool.query(
+          `INSERT INTO token_pools (pool_id, herd_id, total_supply, contract_address)
+           VALUES ($1, $2, $3, $4)
+           RETURNING pool_id, total_supply, contract_address`,
+          [randomUUID(), herdId, totalSupply, deployResult.contractAddress]
+        );
+        poolInfo = inserted.rows[0];
+      }
+    }
+
     const published = await pool.query(
       `
       UPDATE herds
@@ -573,21 +636,20 @@ router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req,
       [listingPrice ?? null, herdId, rancherId]
     );
 
-    if (published.rowCount === 0) {
-      const herdCheck = await pool.query("SELECT herd_id FROM herds WHERE herd_id = $1", [herdId]);
-      if (herdCheck.rowCount > 0) {
-        return res.status(403).json({ error: "Rancher is not allowed to update this herd." });
-      }
-      return res.status(404).json({ error: "Herd not found." });
-    }
-
     return res.json({
       message: "Herd published successfully.",
       herd: published.rows[0],
+      tokenPool: {
+        poolId: poolInfo.pool_id,
+        totalSupply: Number(poolInfo.total_supply),
+        contractAddress: poolInfo.contract_address,
+        deployTxHash: deployResult ? deployResult.txHash : null,
+        explorerUrl: `https://amoy.polygonscan.com/address/${poolInfo.contract_address}`,
+      },
     });
   } catch (error) {
     console.error("POST /api/herds/:herdId/publish error:", error);
-    return res.status(500).json({ error: "Failed to publish herd." });
+    return res.status(500).json({ error: "Failed to publish herd.", detail: error.message });
   }
 });
 
