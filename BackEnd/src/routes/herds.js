@@ -429,7 +429,7 @@ router.get("/:herdId/cattle", async (req, res) => {
 
 // ─── Write routes — all require a real, verified rancher token below ────────
 
-router.post("/", requireAuth, requireRole("rancher"), async (req, res) => {
+router.post("/", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const rancherId = req.user.userId;
   const body = req.body ?? {};
 
@@ -507,7 +507,7 @@ router.post("/", requireAuth, requireRole("rancher"), async (req, res) => {
   }
 });
 
-router.post("/:herdId/list", requireAuth, requireRole("rancher"), async (req, res) => {
+router.post("/:herdId/list", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
   const body = req.body ?? {};
@@ -557,7 +557,7 @@ router.post("/:herdId/list", requireAuth, requireRole("rancher"), async (req, re
 // already has a contract_address (already tokenized on a previous publish),
 // this skips deploying a second contract and just reports the existing one -
 // safe to call more than once.
-router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req, res) => {
+router.post("/:herdId/publish", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
   const body = req.body ?? {};
@@ -653,7 +653,7 @@ router.post("/:herdId/publish", requireAuth, requireRole("rancher"), async (req,
   }
 });
 
-router.patch("/:herdId/move", requireAuth, requireRole("rancher"), async (req, res) => {
+router.patch("/:herdId/move", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
   const body = req.body ?? {};
@@ -728,7 +728,7 @@ router.patch("/:herdId/move", requireAuth, requireRole("rancher"), async (req, r
   }
 });
 
-router.post("/:herdId/cattle/bulk", requireAuth, requireRole("rancher"), async (req, res) => {
+router.post("/:herdId/cattle/bulk", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
   const payload = req.body ?? {};
@@ -779,7 +779,7 @@ router.post("/:herdId/cattle/bulk", requireAuth, requireRole("rancher"), async (
   }
 });
 
-router.post("/:herdId/cattle", requireAuth, requireRole("rancher"), async (req, res) => {
+router.post("/:herdId/cattle", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId } = req.params;
   const rancherId = req.user.userId;
 
@@ -817,7 +817,7 @@ router.post("/:herdId/cattle", requireAuth, requireRole("rancher"), async (req, 
   }
 });
 
-router.delete("/:herdId/cattle/:cowId", requireAuth, requireRole("rancher"), async (req, res) => {
+router.delete("/:herdId/cattle/:cowId", requireAuth, requireRole("rancher", "feedlot"), async (req, res) => {
   const { herdId, cowId } = req.params;
   const rancherId = req.user.userId;
 

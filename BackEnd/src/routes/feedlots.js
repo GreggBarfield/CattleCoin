@@ -47,6 +47,7 @@ router.get("/pending", async (req, res) => {
         h.head_count, h.verified_flag, h.breed_code, h.dominant_stage,
         h.season, h.risk_score, h.feedlot_status, h.investor_pct, h.created_at
       FROM herds h
+      JOIN users ou ON ou.user_id = h.rancher_id AND ou.role = 'rancher'
       WHERE h.feedlot_status = 'pending'
       ORDER BY h.created_at DESC
     `);
@@ -151,6 +152,16 @@ router.post("/claim", requireAuth, requireRole("feedlot"), async (req, res) => {
       return res.status(409).json({ error: "Herd is no longer available (already claimed)" });
     }
 
+    // Only herds owned by a rancher account can be claimed. A herd owned by a
+    // feedlot (a feeder's own herd) is not up for claiming by other feedlots.
+    const ownerRes = await client.query(
+      "SELECT u.role FROM herds h JOIN users u ON u.user_id = h.rancher_id WHERE h.herd_id = $1",
+      [herdId]
+    );
+    if (ownerRes.rows[0].role !== "rancher") {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "This herd is not available to claim" });
+    }
     // Resolve feedlot user from the verified token, not the request body
     const userRes = await client.query(
       "SELECT user_id FROM users WHERE slug = $1 AND role = 'feedlot'",
