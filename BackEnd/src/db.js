@@ -9,8 +9,6 @@ dotenv.config({
   path: path.resolve(__dirname, "../../.env"),
 });
 
-console.log("DB URL:", process.env.DATABASE_URL);
-
 const { Pool } = pkg;
 
 const pool = new Pool({
