@@ -26,15 +26,22 @@ const router = express.Router();
 // Split rules (all math in whole cents, no floating point):
 //   expenses  = every ACTIVE herd_expenses row for the herd (self-billed + service-billed;
 //               voided costs are kept on record but do not count)
-//   net       = max(0, gross - expenses)
-//   investor  = floor(net * investor_tokens / total_supply)
+//   profit    = gross - expenses            (negative = a losing sale)
+//   investor  = the money the investor actually paid in (investor_payments),
+//               returned first, PLUS their token share of the profit:
+//                 profit >= 0:  capital + floor(profit * tokens / total_supply)
+//                 profit <  0:  capital - ceil(loss * tokens / total_supply), never below 0
+//               Holdings with no recorded payment (demo data) get no capital
+//               back, exactly as before this rule existed.
 //   provider  = service-billed expenses (a feedyard billing the owner), paid
 //               ahead of everyone else, capped at the gross price
 //   owner     = whatever is left, so the payouts always add up to exactly the
-//               gross price (this is the owner's share of net plus
-//               reimbursement of costs the owner paid itself, plus any
+//               gross price (the owner's share of the profit, plus
+//               reimbursement of the costs the owner funded, plus any
 //               rounding pennies and the share of unsold tokens)
-// A losing sale pays investors zero - there is no clawback.
+//   If the investors' capital could not all be covered by the sale, their
+//   payouts are reduced in proportion (never below what is left after the
+//   provider is paid).
 //
 // Platform fees (only when the herd has fee terms - see routes/fees.js):
 //   exit profit fee  floor(profit x pct) per investor, where profit is that
@@ -198,6 +205,8 @@ function shapeBreakdown(b) {
     serviceBilledExpenses: dollars(b.serviceCents),
     expensesTotal:         dollars(b.expensesCents),
     netAmount:             dollars(b.netCents),
+    profit:                dollars(b.profitCents),
+    investorCapitalReturned: dollars(b.payouts.filter((p) => p.recipientType === "investor").reduce((s2, p) => s2 + (p.capitalCents ?? 0), 0)),
     totalSupply:           b.totalSupply,
     investorTokens:        b.investorTokens,
     feeTermsApplied:       b.feeTermsApplied,
@@ -210,6 +219,8 @@ function shapeBreakdown(b) {
       tokens:            p.tokens,
       sharePct:          p.sharePct,
       grossBeforeFees:   p.grossBeforeCents != null ? dollars(p.grossBeforeCents) : null,
+      capitalReturned:   p.capitalCents != null ? dollars(p.capitalCents) : null,
+      profitShare:       p.shareCents != null ? dollars(p.shareCents) : null,
       feeAmount:         dollars(p.feeCents ?? 0),
       costBasis:         p.costBasisCents != null ? dollars(p.costBasisCents) : null,
       costBasisEstimated: !!p.costEstimated,
@@ -275,22 +286,54 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, lrpCents = 0
   }
   const serviceCents = providers.reduce((sum, p) => sum + p.cents, 0);
   const expensesCents = selfCents + serviceCents;
-  const netCents = Math.max(0, grossCents - expensesCents);
+  const profitCents = grossCents - expensesCents;
+  const netCents = Math.max(0, profitCents);
+  const warnings = [];
+
+  // what each investor actually paid in (returned to them first)
+  const capRes = tokenPool
+    ? await db.query(
+        `SELECT user_id, COALESCE(SUM(amount), 0) AS paid FROM investor_payments WHERE herd_id = $1 GROUP BY user_id`,
+        [herdId]
+      )
+    : { rows: [] };
+  const capitalByUser = new Map(capRes.rows.map((r) => [r.user_id, toCents(r.paid)]));
+
+  const providerPool = Math.min(serviceCents, grossCents);
 
   const investorPayouts = holders.map((h) => {
-    const cents = Number((BigInt(netCents) * BigInt(h.token_amount)) / totalSupply);
+    const tokens = BigInt(h.token_amount);
+    const capital = capitalByUser.get(h.user_id) ?? 0;
+    const share = profitCents >= 0
+      ? Number((BigInt(profitCents) * tokens) / totalSupply)
+      : -Number((BigInt(-profitCents) * tokens + totalSupply - 1n) / totalSupply);
+    const cents = Math.max(0, capital + share);
     return {
       recipientType: "investor",
       userId: h.user_id,
       tokens: Number(h.token_amount),
-      sharePct: Number((BigInt(h.token_amount) * 100000000n) / totalSupply) / 1e6,
+      sharePct: Number((tokens * 100000000n) / totalSupply) / 1e6,
+      capitalCents: capital,
+      shareCents: cents - capital,
       grossBeforeCents: cents,
       feeCents: 0,
       cents,
     };
   });
 
-  const providerPool = Math.min(serviceCents, grossCents);
+  // Investors are paid after the provider; if their claims are more than the
+  // sale can cover, reduce them in proportion.
+  const investorTotal = investorPayouts.reduce((sum, p) => sum + p.cents, 0);
+  const room = grossCents - providerPool;
+  if (investorTotal > room) {
+    for (const p of investorPayouts) {
+      p.cents = Number((BigInt(p.cents) * BigInt(room)) / BigInt(investorTotal));
+      p.grossBeforeCents = p.cents;
+      p.shareCents = p.cents - p.capitalCents;
+    }
+    warnings.push("The sale could not cover everything owed to investors (their money back plus profit share), so their payouts were reduced in proportion.");
+  }
+
   const providerPayouts = providers.map((p) => ({
     recipientType: "provider",
     userId: p.userId,
@@ -318,7 +361,6 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, lrpCents = 0
   };
 
   // --- platform fees (only when the herd has fee terms) ----------------------
-  const warnings = [];
   let platformCents = 0;
   let feeSnapshot = null;
   const terms = await loadHerdTerms(db, herdId);
@@ -462,7 +504,7 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, lrpCents = 0
   }
 
   return {
-    grossCents, lrpCents, selfCents, serviceCents, expensesCents, netCents,
+    grossCents, lrpCents, selfCents, serviceCents, expensesCents, netCents, profitCents,
     totalSupply: Number(totalSupply),
     investorTokens: Number(investorTokens),
     feeTermsApplied: !!terms,
@@ -791,8 +833,8 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
           `INSERT INTO herd_payouts
              (sale_id, user_id, recipient_type, tokens_held, share_pct, amount,
               gross_before_fees, fee_amount, cost_basis,
-              status, paid_at, paid_by_user_id, payment_reference)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+              status, paid_at, paid_by_user_id, payment_reference, capital_returned)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             saleId, p.userId, p.recipientType, p.tokens, p.sharePct, money(p.cents),
             p.grossBeforeCents != null ? money(p.grossBeforeCents) : null,
@@ -802,6 +844,7 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
             settled ? new Date() : null,
             settled ? adminId : null,
             isPlatform ? "Fee retained by platform" : noneDue ? "No payout due" : null,
+            money(p.capitalCents ?? 0),
           ]
         );
       }
@@ -1137,7 +1180,7 @@ router.get("/sales/:saleId/statement", requireAuth, async (req, res) => {
     if (final) {
       const pr = await pool.query(
         `SELECT p.user_id, u.slug, p.recipient_type, p.tokens_held, p.share_pct, p.gross_before_fees, p.fee_amount,
-                p.amount, p.status, p.paid_at, p.payment_reference
+                p.capital_returned, p.amount, p.status, p.paid_at, p.payment_reference
            FROM herd_payouts p JOIN users u ON u.user_id = p.user_id
           WHERE p.sale_id = $1 ORDER BY p.recipient_type, u.slug`,
         [saleId]
@@ -1146,6 +1189,9 @@ router.get("/sales/:saleId/statement", requireAuth, async (req, res) => {
         recipientType: p.recipient_type, userId: p.user_id, slug: p.slug,
         tokens: Number(p.tokens_held), sharePct: p.share_pct != null ? Number(p.share_pct) : null,
         grossBeforeFees: p.gross_before_fees != null ? Number(p.gross_before_fees) : null,
+        capitalReturned: p.recipient_type === "investor" ? Number(p.capital_returned) : null,
+        profitShare: p.recipient_type === "investor" && p.gross_before_fees != null
+          ? dollars(toCents(p.gross_before_fees) - toCents(p.capital_returned)) : null,
         feeAmount: Number(p.fee_amount), amountCents: toCents(p.amount),
         status: p.status, paidAt: p.paid_at, paymentReference: p.payment_reference,
       }));
@@ -1161,6 +1207,8 @@ router.get("/sales/:saleId/statement", requireAuth, async (req, res) => {
         recipientType: p.recipientType, userId: p.userId, slug: p.slug ?? null,
         tokens: p.tokens, sharePct: p.sharePct,
         grossBeforeFees: p.grossBeforeCents != null ? dollars(p.grossBeforeCents) : null,
+        capitalReturned: p.capitalCents != null ? dollars(p.capitalCents) : null,
+        profitShare: p.shareCents != null ? dollars(p.shareCents) : null,
         feeAmount: dollars(p.feeCents ?? 0), amountCents: p.cents,
         status: "not yet approved", paidAt: null, paymentReference: null,
       }));
@@ -1209,6 +1257,7 @@ router.get("/sales/:saleId/statement", requireAuth, async (req, res) => {
         byCategory: [...byCat.entries()].map(([category, cents]) => ({ category, amount: dollars(cents) })),
       },
       netAmount: dollars(netCents),
+      profit: dollars(proceeds - selfCents - serviceCents),
       platformFeesTotal: dollars(feesTotalCents),
       warnings: [...new Set([...sale.warnings, ...warnings])],
     };
