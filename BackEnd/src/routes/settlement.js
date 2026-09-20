@@ -48,12 +48,77 @@ const router = express.Router();
 // A sale cannot be submitted or approved while investor money raised for the
 // herd has not been released (see routes/funds.js).
 //
+// Exit sale (plan step 7): the seller reports the actual load - head sold,
+// head lost, total live weight and price per cwt (hundredweight = 100 lb) -
+// and the site works the price out: weight x price / 100, in whole cents.
+// A plain grossAmount (a single total) is still accepted, but then no load
+// numbers are on file and the sale carries a warning. If the herd had an LRP
+// policy that paid out, the seller records the payout (lrpIndemnity); it is
+// added to the sale price and split like any other proceeds (the buyer's own
+// purchase cost stays the sale price). An admin can correct the LRP payout
+// and head lost on a pending sale, with a reason (kept in herd_sale_history).
+// GET /sales/:saleId/statement is the itemized settlement statement.
+//
 // This records what is owed. It does not move money.
 
 const OWNER_ROLES = ["rancher", "feedlot"];
 const SALE_STATUSES = ["pending_approval", "approved", "rejected", "cancelled"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_GROSS_DOLLARS = 999999999999;
+const MAX_LRP_DOLLARS = 100000000;
+const MAX_WEIGHT_LBS = 100000000;
+const MAX_PRICE_CWT = 100000;
+const MAX_HEAD = 1000000;
+
+// Reads an optional number from a request body. Returns null when it was not
+// given; throws a 400 when it was given but is not acceptable.
+function optNumber(v, label, { integer = false, min = 0, minExclusive = false, max, decimals = 2 } = {}) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = typeof v === "number" ? v : Number(String(v).trim());
+  if (!Number.isFinite(n)) throw new HttpError(400, `${label} must be a number.`);
+  if (integer && !Number.isInteger(n)) throw new HttpError(400, `${label} must be a whole number.`);
+  if (!integer) {
+    const scaled = n * 10 ** decimals;
+    if (Math.abs(scaled - Math.round(scaled)) > 1e-4) {
+      throw new HttpError(400, `${label} can have at most ${decimals} decimal places.`);
+    }
+  }
+  if (minExclusive ? n <= min : n < min) {
+    throw new HttpError(400, `${label} must be ${minExclusive ? "more than" : "at least"} ${min}.`);
+  }
+  if (max !== undefined && n > max) throw new HttpError(400, `${label} is too large.`);
+  return n;
+}
+
+// The load a packer settled: head sold/lost, live weight (lb) and price per cwt.
+// The price in cents = weight (lb) x price ($/cwt) / 100, rounded to the cent.
+function parseLoad(body) {
+  const headSold = optNumber(body.headSold, "headSold", { integer: true, min: 0, minExclusive: true, max: MAX_HEAD });
+  const headLost = optNumber(body.headLost, "headLost", { integer: true, min: 0, max: MAX_HEAD });
+  const weight = optNumber(body.liveWeightLbs, "liveWeightLbs", { min: 0, minExclusive: true, max: MAX_WEIGHT_LBS });
+  const price = optNumber(body.pricePerCwt, "pricePerCwt", { min: 0, max: MAX_PRICE_CWT });
+  if ((weight === null) !== (price === null)) {
+    throw new HttpError(400, "Give liveWeightLbs and pricePerCwt together.");
+  }
+  if (weight !== null && headSold === null) {
+    throw new HttpError(400, "headSold is required when you give the load weight and price.");
+  }
+  let loadCents = null;
+  if (weight !== null) {
+    loadCents = Number((BigInt(Math.round(weight * 100)) * BigInt(Math.round(price * 100)) + 5000n) / 10000n);
+  }
+  return { headSold, headLost, weight, price, loadCents };
+}
+
+function checkHeadCounts(headSold, headLost, herdHeadCount) {
+  const total = (headSold ?? 0) + (headLost ?? 0);
+  if (total > Number(herdHeadCount)) {
+    throw new HttpError(400, `headSold + headLost (${total}) is more than the herd's head count (${herdHeadCount}).`);
+  }
+}
+
+// The total split among everyone: the price the buyer pays plus any LRP payout.
+const proceedsCents = (row) => toCents(row.gross_amount) + toCents(row.lrp_indemnity ?? 0);
 
 // Columns returned for a sale. Dates come back as text so a server time zone
 // can never shift the day.
@@ -63,7 +128,8 @@ const SALE_SELECT = `
   s.expenses_total, s.net_amount, s.platform_fees_total, s.fee_terms_snapshot,
   s.submitted_at, s.decided_at, s.decision_note,
   s.buyer_response, s.buyer_responded_at, s.buyer_response_note, s.new_herd_id,
-  h.herd_name, su.slug AS seller_slug, bu.slug AS buyer_slug
+  s.head_sold, s.head_lost, s.live_weight_lbs, s.price_per_cwt, s.lrp_indemnity, s.lrp_note,
+  h.herd_name, h.head_count AS herd_head_count, su.slug AS seller_slug, bu.slug AS buyer_slug
 `;
 const SALE_FROM = `
   FROM herd_sales s
@@ -72,7 +138,23 @@ const SALE_FROM = `
   LEFT JOIN users bu ON bu.user_id = s.buyer_user_id
 `;
 
+function saleWarnings(r) {
+  const w = [];
+  if (r.live_weight_lbs == null) {
+    w.push("The price was entered as a single total - no head, weight or price per cwt is on file for this sale.");
+  }
+  if (r.head_sold != null) {
+    const counted = Number(r.head_sold) + Number(r.head_lost ?? 0);
+    if (r.herd_head_count != null && counted !== Number(r.herd_head_count)) {
+      w.push(`Head sold (${r.head_sold}) plus head lost (${r.head_lost ?? 0}) is ${counted}, but the herd's head count is ${r.herd_head_count}.`);
+    }
+  }
+  return w;
+}
+
 function shapeSale(r) {
+  const salePrice = Number(r.gross_amount);
+  const lrp = Number(r.lrp_indemnity ?? 0);
   return {
     saleId:        r.sale_id,
     herdId:        r.herd_id,
@@ -82,7 +164,14 @@ function shapeSale(r) {
     buyerUserId:   r.buyer_user_id ?? null,
     buyerSlug:     r.buyer_slug ?? null,
     buyerName:     r.buyer_name ?? null,
-    grossAmount:   Number(r.gross_amount),
+    grossAmount:   salePrice,
+    lrpIndemnity:  lrp,
+    lrpNote:       r.lrp_note ?? null,
+    proceedsTotal: dollars(toCents(salePrice) + toCents(lrp)),
+    headSold:      r.head_sold != null ? Number(r.head_sold) : null,
+    headLost:      r.head_lost != null ? Number(r.head_lost) : null,
+    liveWeightLbs: r.live_weight_lbs != null ? Number(r.live_weight_lbs) : null,
+    pricePerCwt:   r.price_per_cwt != null ? Number(r.price_per_cwt) : null,
     saleDate:      r.sale_date,
     status:        r.status,
     expensesTotal: r.expenses_total != null ? Number(r.expenses_total) : null,
@@ -96,12 +185,15 @@ function shapeSale(r) {
     buyerRespondedAt: r.buyer_responded_at ?? null,
     buyerResponseNote: r.buyer_response_note ?? null,
     newHerdId:     r.new_herd_id ?? null,
+    warnings:      saleWarnings(r),
   };
 }
 
 function shapeBreakdown(b) {
   return {
     grossAmount:           dollars(b.grossCents),
+    salePrice:             dollars(b.grossCents - (b.lrpCents ?? 0)),
+    lrpIndemnity:          dollars(b.lrpCents ?? 0),
     selfBilledExpenses:    dollars(b.selfCents),
     serviceBilledExpenses: dollars(b.serviceCents),
     expensesTotal:         dollars(b.expensesCents),
@@ -138,7 +230,7 @@ async function resolvePlatformUserId(db, fallbackUserId) {
   return r.rows[0]?.user_id ?? fallbackUserId ?? null;
 }
 
-async function computeSettlement(db, { herdId, ownerId, grossCents, platformUserId = null }) {
+async function computeSettlement(db, { herdId, ownerId, grossCents, lrpCents = 0, platformUserId = null }) {
   const poolRes = await db.query(
     "SELECT pool_id, total_supply FROM token_pools WHERE herd_id = $1",
     [herdId]
@@ -370,7 +462,7 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, platformUser
   }
 
   return {
-    grossCents, selfCents, serviceCents, expensesCents, netCents,
+    grossCents, lrpCents, selfCents, serviceCents, expensesCents, netCents,
     totalSupply: Number(totalSupply),
     investorTokens: Number(investorTokens),
     feeTermsApplied: !!terms,
@@ -382,9 +474,13 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, platformUser
 }
 
 // --- POST /api/settlement/herds/:herdId/sale ---------------------------------
-// Owner submits a sale. Body: { grossAmount, buyerSlug? | buyerName?, saleDate? }
+// Owner submits a sale. Body:
+//   the price, either the load  { headSold, headLost?, liveWeightLbs, pricePerCwt }
+//                    or a total { grossAmount }   (if both are given they must agree)
+//   optional                    { lrpIndemnity?, lrpNote?, saleDate? }
+//   the buyer                   { buyerSlug? | buyerName? } - at least one
 // buyerSlug = a producer account on the platform; buyerName = an outside buyer
-// (packer, etc.). At least one is required.
+// (packer, etc.).
 router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), async (req, res) => {
   const { herdId } = req.params;
   const sellerId = req.user.userId;
@@ -392,13 +488,41 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
 
   if (!isUuid(herdId)) return res.status(400).json({ error: "Invalid herdId." });
 
+  let load;
+  let lrpDollars;
+  try {
+    load = parseLoad(body);
+    lrpDollars = optNumber(body.lrpIndemnity, "lrpIndemnity", { min: 0, max: MAX_LRP_DOLLARS }) ?? 0;
+  } catch (err) {
+    return sendError(res, "POST /api/settlement/herds/:herdId/sale", err);
+  }
+  const lrpCents = toCents(lrpDollars);
+  const lrpNote = body.lrpNote ? String(body.lrpNote).trim().slice(0, 255) : null;
+
   const grossRaw = body.grossAmount;
+  const hasGross = !(grossRaw === undefined || grossRaw === null || grossRaw === "");
   const gross = Number(grossRaw);
-  if (grossRaw === undefined || grossRaw === null || grossRaw === "" || !Number.isFinite(gross) || gross < 0) {
+  if (hasGross && (!Number.isFinite(gross) || gross < 0)) {
     return res.status(400).json({ error: "grossAmount must be a number of 0 or more." });
   }
-  if (gross > MAX_GROSS_DOLLARS) return res.status(400).json({ error: "grossAmount is too large." });
-  const grossCents = toCents(gross);
+  if (hasGross && gross > MAX_GROSS_DOLLARS) return res.status(400).json({ error: "grossAmount is too large." });
+  let grossCents;
+  if (load.loadCents !== null) {
+    if (hasGross && Math.abs(toCents(gross) - load.loadCents) > 1) {
+      return res.status(400).json({
+        error: `grossAmount ($${money(toCents(gross))}) does not match the load: weight x price = $${money(load.loadCents)}. ` +
+          "Send only the load numbers, or correct one of them.",
+      });
+    }
+    grossCents = load.loadCents;
+  } else if (hasGross) {
+    grossCents = toCents(gross);
+  } else {
+    return res.status(400).json({
+      error: "Give the load (headSold, liveWeightLbs, pricePerCwt) or a grossAmount.",
+    });
+  }
+  if (grossCents / 100 > MAX_GROSS_DOLLARS) return res.status(400).json({ error: "The sale price is too large." });
 
   let saleDate = null;
   if (body.saleDate !== undefined && body.saleDate !== null && body.saleDate !== "") {
@@ -418,7 +542,7 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
   try {
     const out = await withTransaction(async (client) => {
       const herdRes = await client.query(
-        "SELECT herd_id, rancher_id, feedlot_status FROM herds WHERE herd_id = $1 FOR UPDATE",
+        "SELECT herd_id, rancher_id, feedlot_status, head_count FROM herds WHERE herd_id = $1 FOR UPDATE",
         [herdId]
       );
       if (herdRes.rowCount === 0) throw new HttpError(404, "Herd not found.");
@@ -426,6 +550,13 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
       if (herd.rancher_id !== sellerId) throw new HttpError(403, "You are not allowed to sell this herd.");
       if (herd.feedlot_status === "sold") {
         throw new HttpError(409, "This herd is already sold or has a sale in progress.");
+      }
+      checkHeadCounts(load.headSold, load.headLost, herd.head_count);
+      if (lrpCents > 0) {
+        const pol = await client.query("SELECT 1 FROM herd_lrp_policies WHERE herd_id = $1 LIMIT 1", [herdId]);
+        if (pol.rowCount === 0) {
+          throw new HttpError(400, "An LRP payout can only be recorded on a herd that has an LRP policy on file (POST /api/lrp/herds/:herdId).");
+        }
       }
       const funds = await getFundsPosition(client, herdId);
       if (funds.availableCents > 0) {
@@ -444,6 +575,9 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
           throw new HttpError(400, "Buyer must be a producer account (rancher or feedlot).");
         }
         if (b.rows[0].user_id === sellerId) throw new HttpError(400, "Buyer cannot be the seller.");
+        if (load.headSold !== null && load.headSold < 20) {
+          throw new HttpError(400, "A herd handed to a platform buyer needs at least 20 head sold.");
+        }
         buyerUserId = b.rows[0].user_id;
       }
 
@@ -451,11 +585,13 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
       try {
         const ins = await client.query(
           `INSERT INTO herd_sales
-             (herd_id, seller_user_id, buyer_user_id, buyer_name, gross_amount, sale_date, prior_feedlot_status, buyer_response)
-           VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8)
+             (herd_id, seller_user_id, buyer_user_id, buyer_name, gross_amount, sale_date, prior_feedlot_status, buyer_response,
+              head_sold, head_lost, live_weight_lbs, price_per_cwt, lrp_indemnity, lrp_note)
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING sale_id`,
           [herdId, sellerId, buyerUserId, buyerName, money(grossCents), saleDate, herd.feedlot_status ?? "pending",
-           buyerUserId ? "waiting" : "not_required"]
+           buyerUserId ? "waiting" : "not_required",
+           load.headSold, load.headLost, load.weight, load.price, money(lrpCents), lrpNote]
         );
         saleRow = ins.rows[0];
       } catch (err) {
@@ -473,7 +609,9 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
       );
 
       const platformUserId = await resolvePlatformUserId(client, null);
-      const breakdown = await computeSettlement(client, { herdId, ownerId: sellerId, grossCents, platformUserId });
+      const breakdown = await computeSettlement(client, {
+        herdId, ownerId: sellerId, grossCents: grossCents + lrpCents, lrpCents, platformUserId,
+      });
       const saleFull = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleRow.sale_id]);
       return { sale: saleFull.rows[0], breakdown };
     });
@@ -546,7 +684,8 @@ router.get("/sales/:saleId", requireAuth, async (req, res) => {
       const breakdown = await computeSettlement(pool, {
         herdId: row.herd_id,
         ownerId: row.seller_user_id,
-        grossCents: toCents(row.gross_amount),
+        grossCents: proceedsCents(row),
+        lrpCents: toCents(row.lrp_indemnity),
         platformUserId: await resolvePlatformUserId(pool, null),
       });
       out.preview = shapeBreakdown(breakdown);
@@ -578,6 +717,19 @@ router.get("/sales/:saleId", requireAuth, async (req, res) => {
       }));
     }
 
+    if (req.user.role === "admin" || row.seller_user_id === req.user.userId) {
+      const hist = await pool.query(
+        `SELECT h.action, h.reason, h.before_data, h.after_data, h.created_at, u.slug AS changed_by
+           FROM herd_sale_history h LEFT JOIN users u ON u.user_id = h.changed_by
+          WHERE h.sale_id = $1 ORDER BY h.created_at, h.history_id`,
+        [saleId]
+      );
+      out.corrections = hist.rows.map((h) => ({
+        action: h.action, reason: h.reason, before: h.before_data, after: h.after_data,
+        changedBy: h.changed_by, at: h.created_at,
+      }));
+    }
+
     return res.json(out);
   } catch (err) {
     return sendError(res, "GET /api/settlement/sales/:saleId", err);
@@ -596,7 +748,7 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
   try {
     const out = await withTransaction(async (client) => {
       const saleRes = await client.query(
-        "SELECT sale_id, herd_id, seller_user_id, buyer_user_id, buyer_response, gross_amount, status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
+        "SELECT sale_id, herd_id, seller_user_id, buyer_user_id, buyer_response, gross_amount, lrp_indemnity, status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
         [saleId]
       );
       if (saleRes.rowCount === 0) throw new HttpError(404, "Sale not found.");
@@ -626,7 +778,8 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
       const breakdown = await computeSettlement(client, {
         herdId: sale.herd_id,
         ownerId: sale.seller_user_id,
-        grossCents: toCents(sale.gross_amount),
+        grossCents: proceedsCents(sale),
+        lrpCents: toCents(sale.lrp_indemnity),
         platformUserId: await resolvePlatformUserId(client, adminId),
       });
 
@@ -802,6 +955,281 @@ router.post("/sales/:saleId/decline", requireAuth, requireRole(...OWNER_ROLES), 
     return res.json({ message: "You declined this sale. The herd is back to its previous status.", sale: shapeSale(row) });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/decline", err);
+  }
+});
+
+// --- POST /api/settlement/sales/:saleId/correct ------------------------------
+// Admin only, PENDING sales only. Fixes the things that do not change what the
+// buyer pays: the LRP payout, its note, and head lost. (To change the price
+// or the load, the seller cancels and submits again.) A reason is required and
+// every correction is kept in herd_sale_history.
+// Body: { reason, lrpIndemnity?, lrpNote?, headLost? }
+router.post("/sales/:saleId/correct", requireAuth, requireRole("admin"), async (req, res) => {
+  const { saleId } = req.params;
+  const adminId = req.user.userId;
+  const body = req.body ?? {};
+  if (!isUuid(saleId)) return res.status(400).json({ error: "Invalid saleId." });
+  const reason = body.reason ? String(body.reason).trim().slice(0, 255) : "";
+  if (!reason) return res.status(400).json({ error: "reason is required for a correction." });
+
+  let lrpDollars;
+  let headLost;
+  try {
+    lrpDollars = optNumber(body.lrpIndemnity, "lrpIndemnity", { min: 0, max: MAX_LRP_DOLLARS });
+    headLost = optNumber(body.headLost, "headLost", { integer: true, min: 0, max: MAX_HEAD });
+  } catch (err) {
+    return sendError(res, "POST /api/settlement/sales/:saleId/correct", err);
+  }
+  const noteGiven = body.lrpNote !== undefined;
+  if (lrpDollars === null && headLost === null && !noteGiven) {
+    return res.status(400).json({ error: "Give at least one of lrpIndemnity, lrpNote or headLost to correct." });
+  }
+
+  try {
+    const out = await withTransaction(async (client) => {
+      const saleRes = await client.query(
+        `SELECT sale_id, herd_id, seller_user_id, status, gross_amount, head_sold, head_lost, lrp_indemnity, lrp_note
+           FROM herd_sales WHERE sale_id = $1 FOR UPDATE`,
+        [saleId]
+      );
+      if (saleRes.rowCount === 0) throw new HttpError(404, "Sale not found.");
+      const sale = saleRes.rows[0];
+      if (sale.status !== "pending_approval") {
+        throw new HttpError(409, `Sale is already ${sale.status}. Only a pending sale can be corrected.`);
+      }
+      const herdRes = await client.query("SELECT head_count FROM herds WHERE herd_id = $1 FOR UPDATE", [sale.herd_id]);
+
+      const newLrpCents = lrpDollars !== null ? toCents(lrpDollars) : toCents(sale.lrp_indemnity);
+      const newHeadLost = headLost !== null ? headLost : sale.head_lost;
+      const newNote = noteGiven ? (body.lrpNote ? String(body.lrpNote).trim().slice(0, 255) : null) : sale.lrp_note;
+      checkHeadCounts(sale.head_sold, newHeadLost, herdRes.rows[0].head_count);
+      if (newLrpCents > 0) {
+        const pol = await client.query("SELECT 1 FROM herd_lrp_policies WHERE herd_id = $1 LIMIT 1", [sale.herd_id]);
+        if (pol.rowCount === 0) {
+          throw new HttpError(400, "An LRP payout can only be recorded on a herd that has an LRP policy on file.");
+        }
+      }
+
+      const before = {
+        lrpIndemnity: Number(sale.lrp_indemnity), lrpNote: sale.lrp_note ?? null,
+        headLost: sale.head_lost != null ? Number(sale.head_lost) : null,
+      };
+      const after = { lrpIndemnity: dollars(newLrpCents), lrpNote: newNote ?? null, headLost: newHeadLost ?? null };
+      if (JSON.stringify(before) === JSON.stringify(after)) {
+        throw new HttpError(400, "That is what the sale already says - nothing to change.");
+      }
+
+      await client.query(
+        "UPDATE herd_sales SET lrp_indemnity = $2, lrp_note = $3, head_lost = $4 WHERE sale_id = $1",
+        [saleId, money(newLrpCents), newNote, newHeadLost]
+      );
+      await client.query(
+        `INSERT INTO herd_sale_history (sale_id, action, changed_by, reason, before_data, after_data)
+         VALUES ($1, 'correct', $2, $3, $4::jsonb, $5::jsonb)`,
+        [saleId, adminId, reason, JSON.stringify(before), JSON.stringify(after)]
+      );
+
+      const breakdown = await computeSettlement(client, {
+        herdId: sale.herd_id,
+        ownerId: sale.seller_user_id,
+        grossCents: toCents(sale.gross_amount) + newLrpCents,
+        lrpCents: newLrpCents,
+        platformUserId: await resolvePlatformUserId(client, adminId),
+      });
+      const saleFull = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
+      return { sale: saleFull.rows[0], breakdown };
+    });
+    return res.json({
+      message: "Sale corrected. The correction and your reason are on record.",
+      sale: shapeSale(out.sale),
+      preview: shapeBreakdown(out.breakdown),
+    });
+  } catch (err) {
+    return sendError(res, "POST /api/settlement/sales/:saleId/correct", err);
+  }
+});
+
+// --- settlement statement ----------------------------------------------------
+// What one investor paid for their tokens: recorded payments, plus an estimate
+// (tokens x listing price / supply) for any tokens with no recorded payment.
+async function investorCostBasis(db, { herdId, userId, tokens, totalSupply, listingCents }) {
+  const rec = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS paid, COALESCE(SUM(tokens), 0) AS tokens
+       FROM investor_payments WHERE herd_id = $1 AND user_id = $2`,
+    [herdId, userId]
+  );
+  let cents = toCents(rec.rows[0].paid);
+  const unrecorded = Math.max(0, Number(tokens) - Number(rec.rows[0].tokens));
+  if (unrecorded === 0) return { cents, estimated: false };
+  if (listingCents > 0 && totalSupply > 0n) {
+    cents += Number((BigInt(unrecorded) * BigInt(listingCents)) / totalSupply);
+    return { cents, estimated: true };
+  }
+  return { cents: null, estimated: true };
+}
+
+async function investorHasStake(db, herdId, userId, saleId) {
+  const r = await db.query(
+    `SELECT 1 FROM ownership o JOIN token_pools tp ON tp.pool_id = o.pool_id
+      WHERE tp.herd_id = $1 AND o.user_id = $2 AND o.token_amount > 0
+     UNION ALL SELECT 1 FROM investor_payments WHERE herd_id = $1 AND user_id = $2
+     UNION ALL SELECT 1 FROM herd_payouts WHERE sale_id = $3 AND user_id = $2 AND recipient_type = 'investor'`,
+    [herdId, userId, saleId]
+  );
+  return r.rowCount > 0;
+}
+
+// --- GET /api/settlement/sales/:saleId/statement -----------------------------
+// The itemized settlement statement for a sale: proceeds (price + LRP payout),
+// the load, every cost by category, fees, and the split. Admin and the seller
+// see everyone's line; an investor in the herd sees the sale, the costs and
+// ONLY their own line, with profit or loss against what they paid.
+// A pending sale gives a preview (status "preview"); an approved one the final
+// numbers. Rejected and cancelled sales have no statement.
+router.get("/sales/:saleId/statement", requireAuth, async (req, res) => {
+  const { saleId } = req.params;
+  if (!isUuid(saleId)) return res.status(400).json({ error: "Invalid saleId." });
+
+  try {
+    const result = await pool.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Sale not found." });
+    const row = result.rows[0];
+    const userId = req.user.userId;
+
+    let view = null;
+    if (req.user.role === "admin" || row.seller_user_id === userId) view = "full";
+    else if (req.user.role === "investor" && (await investorHasStake(pool, row.herd_id, userId, saleId))) view = "investor";
+    if (!view) return res.status(403).json({ error: "You are not allowed to view this statement." });
+
+    if (row.status !== "pending_approval" && row.status !== "approved") {
+      return res.status(409).json({ error: `There is no statement for a sale that was ${row.status}.` });
+    }
+    const final = row.status === "approved";
+    const proceeds = proceedsCents(row);
+
+    const poolRes = await pool.query("SELECT total_supply FROM token_pools WHERE herd_id = $1", [row.herd_id]);
+    const totalSupply = poolRes.rows[0] ? BigInt(poolRes.rows[0].total_supply) : 0n;
+    const herdRes = await pool.query("SELECT listing_price FROM herds WHERE herd_id = $1", [row.herd_id]);
+    const listingCents = herdRes.rows[0]?.listing_price != null ? toCents(herdRes.rows[0].listing_price) : 0;
+
+    // costs (frozen once the sale is approved)
+    const costRes = await pool.query(
+      `SELECT category, billing_direction, COALESCE(SUM(amount), 0) AS total
+         FROM herd_expenses WHERE herd_id = $1 AND status = 'active'
+        GROUP BY category, billing_direction ORDER BY category`,
+      [row.herd_id]
+    );
+    const byCat = new Map();
+    let selfCents = 0;
+    let serviceCents = 0;
+    for (const c of costRes.rows) {
+      const cents = toCents(c.total);
+      byCat.set(c.category, (byCat.get(c.category) ?? 0) + cents);
+      if (c.billing_direction === "service") serviceCents += cents; else selfCents += cents;
+    }
+
+    // the split
+    let lines;
+    let netCents;
+    let feesTotalCents;
+    let feeTerms;
+    let warnings = [];
+    if (final) {
+      const pr = await pool.query(
+        `SELECT p.user_id, u.slug, p.recipient_type, p.tokens_held, p.share_pct, p.gross_before_fees, p.fee_amount,
+                p.amount, p.status, p.paid_at, p.payment_reference
+           FROM herd_payouts p JOIN users u ON u.user_id = p.user_id
+          WHERE p.sale_id = $1 ORDER BY p.recipient_type, u.slug`,
+        [saleId]
+      );
+      lines = pr.rows.map((p) => ({
+        recipientType: p.recipient_type, userId: p.user_id, slug: p.slug,
+        tokens: Number(p.tokens_held), sharePct: p.share_pct != null ? Number(p.share_pct) : null,
+        grossBeforeFees: p.gross_before_fees != null ? Number(p.gross_before_fees) : null,
+        feeAmount: Number(p.fee_amount), amountCents: toCents(p.amount),
+        status: p.status, paidAt: p.paid_at, paymentReference: p.payment_reference,
+      }));
+      netCents = toCents(row.net_amount);
+      feesTotalCents = row.platform_fees_total != null ? toCents(row.platform_fees_total) : 0;
+      feeTerms = row.fee_terms_snapshot ?? null;
+    } else {
+      const b = await computeSettlement(pool, {
+        herdId: row.herd_id, ownerId: row.seller_user_id, grossCents: proceeds,
+        lrpCents: toCents(row.lrp_indemnity), platformUserId: await resolvePlatformUserId(pool, null),
+      });
+      lines = b.payouts.map((p) => ({
+        recipientType: p.recipientType, userId: p.userId, slug: p.slug ?? null,
+        tokens: p.tokens, sharePct: p.sharePct,
+        grossBeforeFees: p.grossBeforeCents != null ? dollars(p.grossBeforeCents) : null,
+        feeAmount: dollars(p.feeCents ?? 0), amountCents: p.cents,
+        status: "not yet approved", paidAt: null, paymentReference: null,
+      }));
+      netCents = b.netCents;
+      feesTotalCents = b.feeTermsApplied ? b.platformCents : 0;
+      feeTerms = b.feeSnapshot ?? null;
+      warnings = b.warnings;
+    }
+
+    // profit or loss for each investor line
+    for (const l of lines) {
+      if (l.recipientType !== "investor") continue;
+      const basis = await investorCostBasis(pool, {
+        herdId: row.herd_id, userId: l.userId, tokens: l.tokens, totalSupply, listingCents,
+      });
+      l.costBasis = basis.cents != null ? dollars(basis.cents) : null;
+      l.costBasisEstimated = basis.estimated;
+      l.profit = basis.cents != null ? dollars(l.amountCents - basis.cents) : null;
+      l.returnPct = basis.cents > 0 ? Math.round(((l.amountCents - basis.cents) * 10000) / basis.cents) / 100 : null;
+    }
+    const shapeLine = (l) => {
+      const { amountCents, ...rest } = l;
+      return { ...rest, amount: dollars(amountCents) };
+    };
+
+    const sale = shapeSale(row);
+    const out = {
+      view,
+      statementStatus: final ? "final" : "preview",
+      sale,
+      proceeds: {
+        salePrice: dollars(toCents(row.gross_amount)),
+        lrpIndemnity: dollars(toCents(row.lrp_indemnity)),
+        total: dollars(proceeds),
+      },
+      load: {
+        headSold: sale.headSold, headLost: sale.headLost,
+        liveWeightLbs: sale.liveWeightLbs, pricePerCwt: sale.pricePerCwt,
+        avgWeightPerHead: sale.liveWeightLbs != null && sale.headSold ? Math.round((sale.liveWeightLbs / sale.headSold) * 10) / 10 : null,
+        pricePerHead: sale.headSold ? Math.round((toCents(row.gross_amount) / sale.headSold)) / 100 : null,
+      },
+      costs: {
+        total: dollars(selfCents + serviceCents),
+        selfBilled: dollars(selfCents),
+        serviceBilled: dollars(serviceCents),
+        byCategory: [...byCat.entries()].map(([category, cents]) => ({ category, amount: dollars(cents) })),
+      },
+      netAmount: dollars(netCents),
+      platformFeesTotal: dollars(feesTotalCents),
+      warnings: [...new Set([...sale.warnings, ...warnings])],
+    };
+
+    if (view === "full") {
+      out.payouts = lines.map(shapeLine);
+      out.payoutsTotal = dollars(lines.reduce((sum, l) => sum + l.amountCents, 0));
+      out.feeTerms = feeTerms;
+    } else {
+      const mine = lines.find((l) => l.recipientType === "investor" && l.userId === userId);
+      out.you = mine ? shapeLine(mine) : null;
+      // an investor sees only their own fee line, not the other investors'
+      out.sale.feeTerms = null;
+      out.feeTerms = feeTerms
+        ? { ...feeTerms, investorFees: (feeTerms.investorFees ?? []).filter((f) => f.userId === userId) }
+        : null;
+    }
+
+    return res.json(out);
+  } catch (err) {
+    return sendError(res, "GET /api/settlement/sales/:saleId/statement", err);
   }
 });
 

@@ -4,7 +4,8 @@ import { HttpError } from "./routeHelpers.js";
 // Runs inside the approval transaction (pass its client), so either the
 // whole handover happens or none of it does.
 //
-//   1. A new herd is created in the buyer's account (same head count and
+//   1. A new herd is created in the buyer's account (head count = the head sold
+//      if the sale says so, otherwise the old head count; same
 //      details, feedlot_status 'pending' = not open to investors yet).
 //   2. The animal records move to the new herd. One animal is one row (its
 //      registration number is unique), so the animals are moved, not copied.
@@ -18,7 +19,7 @@ import { HttpError } from "./routeHelpers.js";
 // whoever bought it).
 export async function transferHerdToBuyer(client, saleId) {
   const saleRes = await client.query(
-    `SELECT sale_id, herd_id, seller_user_id, buyer_user_id, gross_amount, sale_date::text AS sale_date
+    `SELECT sale_id, herd_id, seller_user_id, buyer_user_id, gross_amount, head_sold, sale_date::text AS sale_date
        FROM herd_sales WHERE sale_id = $1 FOR UPDATE`,
     [saleId]
   );
@@ -39,6 +40,12 @@ export async function transferHerdToBuyer(client, saleId) {
   const buyer = buyerRes.rows[0];
   const sellerSlug = sellerRes.rows[0]?.slug ?? "seller";
 
+  // The new herd is the head actually sold (the herd may have lost some before the sale).
+  const newHeadCount = sale.head_sold != null ? Number(sale.head_sold) : Number(old.head_count);
+  if (newHeadCount < 20) {
+    throw new HttpError(409, "A herd handed to a platform buyer needs at least 20 head.");
+  }
+
   const isFeedlot = buyer.role === "feedlot";
   const baseName = old.herd_name ?? "Herd";
   const newName = (isFeedlot ? `${baseName} - Finishing` : baseName).slice(0, 120);
@@ -51,7 +58,7 @@ export async function transferHerdToBuyer(client, saleId) {
      VALUES ($1, $2, $3, NULL, 'pending', $4, $5, $6, $7, $8, 'pending', 'sold_outright', $9)
      RETURNING herd_id, herd_name, head_count`,
     [
-      buyer.user_id, newName, old.head_count, old.verified_flag,
+      buyer.user_id, newName, newHeadCount, old.verified_flag,
       isFeedlot ? "FEEDLOT" : old.dominant_stage,
       old.breed_code, old.season, old.cohort_label, old.herd_id,
     ]
@@ -81,10 +88,10 @@ export async function transferHerdToBuyer(client, saleId) {
   await client.query("UPDATE herd_sales SET new_herd_id = $2 WHERE sale_id = $1", [saleId, newHerd.herd_id]);
 
   const warnings = [];
-  if (animalIds.length !== Number(old.head_count)) {
+  if (animalIds.length !== newHeadCount) {
     warnings.push(
-      `The herd says ${old.head_count} head but ${animalIds.length} animal records moved. ` +
-        "The new herd keeps the same head count; correct the animal list if needed."
+      `The new herd has ${newHeadCount} head but ${animalIds.length} animal records moved. ` +
+        "Correct the animal list if needed."
     );
   }
 
