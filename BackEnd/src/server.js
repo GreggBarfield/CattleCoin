@@ -12,6 +12,7 @@ import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import rancherRoutes from "./routes/rancher.js";
 import herdsRoutes from "./routes/herds.js";
+import offeringRoutes from "./routes/offering.js";
 import cattleRoutes from "./routes/cattle.js";
 import blockchainRoutes from "./routes/blockchain.js";
 import settlementRoutes from "./routes/settlement.js";
@@ -40,6 +41,7 @@ app.use("/api/auth",     authRoutes);      // login
 app.use("/api/users",    usersRoutes);     // user list by role
 app.use("/api/rancher", rancherRoutes);
 app.use("/api/herds", herdsRoutes);
+app.use("/api/herds", offeringRoutes);
 app.use("/api/cattle", cattleRoutes);
 app.use("/api/blockchain", blockchainRoutes);
 app.use("/api/settlement", settlementRoutes);

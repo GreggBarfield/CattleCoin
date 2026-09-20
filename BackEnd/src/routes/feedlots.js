@@ -1,5 +1,6 @@
 ﻿import express from "express";
 import pool from "../db.js";
+import { prepareHerdForInvestors } from "../lib/offering.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
@@ -172,6 +173,10 @@ router.post("/claim", requireAuth, requireRole("feedlot"), async (req, res) => {
       return res.status(404).json({ error: `Feedlot user not found: ${feedlotSlug}` });
     }
     const feedlotUserId = userRes.rows[0].user_id;
+
+    // Every herd that reaches investors needs a token pool and fee terms
+    // (copied from the platform defaults if none exist yet).
+    await prepareHerdForInvestors(client, { herdId, actorUserId: feedlotUserId });
 
     // Claim the herd
     const updated = await client.query(
