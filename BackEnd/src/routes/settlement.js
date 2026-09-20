@@ -3,6 +3,7 @@ import pool from "../db.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { HttpError, isUuid, toCents, dollars, money, withTransaction, sendError } from "../lib/routeHelpers.js";
 import { loadHerdTerms, pctToBps, feeOnCents, getFundsPosition } from "../lib/feeTerms.js";
+import { transferHerdToBuyer } from "../lib/transfer.js";
 
 const router = express.Router();
 
@@ -12,8 +13,15 @@ const router = express.Router();
 //   1. The herd's owner (rancher or feedlot) submits a sale: price + buyer.
 //      The herd is closed to new investors immediately.
 //   2. An admin reviews the computed split and approves (or rejects).
+//      If the buyer is a platform producer, that buyer must ACCEPT the sale
+//      first (or decline it, which closes the sale). An admin cannot approve
+//      a platform-buyer sale until the buyer has accepted.
 //   3. Approval freezes the numbers and creates a payout row for everyone
 //      owed money. Admin marks each payout paid, with a reference.
+//   4. When the buyer is a platform producer, approval also hands the herd
+//      over: a new herd is created in the buyer's account, the animal records
+//      move to it, and the price paid becomes its first cost (see
+//      lib/transfer.js). A whole herd moves, never part of one.
 //
 // Split rules (all math in whole cents, no floating point):
 //   expenses  = every herd_expenses row for the herd (self-billed + service-billed)
@@ -53,6 +61,7 @@ const SALE_SELECT = `
   s.gross_amount, s.sale_date::text AS sale_date, s.status,
   s.expenses_total, s.net_amount, s.platform_fees_total, s.fee_terms_snapshot,
   s.submitted_at, s.decided_at, s.decision_note,
+  s.buyer_response, s.buyer_responded_at, s.buyer_response_note, s.new_herd_id,
   h.herd_name, su.slug AS seller_slug, bu.slug AS buyer_slug
 `;
 const SALE_FROM = `
@@ -82,6 +91,10 @@ function shapeSale(r) {
     submittedAt:   r.submitted_at,
     decidedAt:     r.decided_at ?? null,
     decisionNote:  r.decision_note ?? null,
+    buyerResponse: r.buyer_response ?? "not_required",
+    buyerRespondedAt: r.buyer_responded_at ?? null,
+    buyerResponseNote: r.buyer_response_note ?? null,
+    newHerdId:     r.new_herd_id ?? null,
   };
 }
 
@@ -437,10 +450,11 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
       try {
         const ins = await client.query(
           `INSERT INTO herd_sales
-             (herd_id, seller_user_id, buyer_user_id, buyer_name, gross_amount, sale_date, prior_feedlot_status)
-           VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7)
+             (herd_id, seller_user_id, buyer_user_id, buyer_name, gross_amount, sale_date, prior_feedlot_status, buyer_response)
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, $8)
            RETURNING sale_id`,
-          [herdId, sellerId, buyerUserId, buyerName, money(grossCents), saleDate, herd.feedlot_status ?? "pending"]
+          [herdId, sellerId, buyerUserId, buyerName, money(grossCents), saleDate, herd.feedlot_status ?? "pending",
+           buyerUserId ? "waiting" : "not_required"]
         );
         saleRow = ins.rows[0];
       } catch (err) {
@@ -464,7 +478,9 @@ router.post("/herds/:herdId/sale", requireAuth, requireRole(...OWNER_ROLES), asy
     });
 
     return res.status(201).json({
-      message: "Sale submitted for admin approval. The herd is now closed to new investors.",
+      message: buyerSlug
+        ? "Sale submitted. The buyer must accept it, then an admin approves it. The herd is now closed to new investors."
+        : "Sale submitted for admin approval. The herd is now closed to new investors.",
       sale: shapeSale(out.sale),
       preview: shapeBreakdown(out.breakdown),
     });
@@ -579,12 +595,15 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
   try {
     const out = await withTransaction(async (client) => {
       const saleRes = await client.query(
-        "SELECT sale_id, herd_id, seller_user_id, gross_amount, status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
+        "SELECT sale_id, herd_id, seller_user_id, buyer_user_id, buyer_response, gross_amount, status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
         [saleId]
       );
       if (saleRes.rowCount === 0) throw new HttpError(404, "Sale not found.");
       const sale = saleRes.rows[0];
       if (sale.status !== "pending_approval") throw new HttpError(409, `Sale is already ${sale.status}.`);
+      if (sale.buyer_user_id && sale.buyer_response !== "accepted") {
+        throw new HttpError(409, "The buyer has not accepted this sale yet. It cannot be approved until they do.");
+      }
 
       const herdRes = await client.query(
         "SELECT herd_id, rancher_id FROM herds WHERE herd_id = $1 FOR UPDATE",
@@ -646,14 +665,20 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
         ]
       );
 
+      // Platform buyer: hand the herd over (new herd, animals, purchase cost).
+      const transfer = await transferHerdToBuyer(client, saleId);
+
       const saleFull = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
-      return { sale: saleFull.rows[0], breakdown };
+      return { sale: saleFull.rows[0], breakdown, transfer };
     });
 
     return res.json({
-      message: "Sale approved. Payouts are recorded as owed - no money has moved.",
+      message: out.transfer
+        ? "Sale approved and the herd has been handed over to the buyer. Payouts are recorded as owed - no money has moved."
+        : "Sale approved. Payouts are recorded as owed - no money has moved.",
       sale: shapeSale(out.sale),
       settlement: shapeBreakdown(out.breakdown),
+      transfer: out.transfer,
     });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/approve", err);
@@ -662,16 +687,19 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
 
 // Shared by reject (admin) and cancel (seller): close a PENDING sale and put
 // the herd back to the status it had before the sale was submitted.
-async function closePendingSale({ saleId, newStatus, actorId, note, onlySeller }) {
+async function closePendingSale({ saleId, newStatus, actorId, note, onlySeller, onlyBuyer = false }) {
   return withTransaction(async (client) => {
     const saleRes = await client.query(
-      "SELECT sale_id, herd_id, seller_user_id, status, prior_feedlot_status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
+      "SELECT sale_id, herd_id, seller_user_id, buyer_user_id, status, prior_feedlot_status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
       [saleId]
     );
     if (saleRes.rowCount === 0) throw new HttpError(404, "Sale not found.");
     const sale = saleRes.rows[0];
     if (onlySeller && sale.seller_user_id !== actorId) {
       throw new HttpError(403, "Only the seller can cancel this sale.");
+    }
+    if (onlyBuyer && sale.buyer_user_id !== actorId) {
+      throw new HttpError(403, "Only the buyer named on this sale can decline it.");
     }
     if (sale.status !== "pending_approval") throw new HttpError(409, `Sale is already ${sale.status}.`);
 
@@ -686,6 +714,12 @@ async function closePendingSale({ saleId, newStatus, actorId, note, onlySeller }
         WHERE sale_id = $1`,
       [saleId, newStatus, actorId, note]
     );
+    if (onlyBuyer) {
+      await client.query(
+        "UPDATE herd_sales SET buyer_response = 'declined', buyer_responded_at = NOW(), buyer_response_note = $2 WHERE sale_id = $1",
+        [saleId, note]
+      );
+    }
 
     const saleFull = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
     return saleFull.rows[0];
@@ -714,6 +748,59 @@ router.post("/sales/:saleId/cancel", requireAuth, requireRole(...OWNER_ROLES), a
     return res.json({ message: "Sale cancelled. The herd is back to its previous status.", sale: shapeSale(row) });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/cancel", err);
+  }
+});
+
+// --- POST /api/settlement/sales/:saleId/accept ------------------------------
+// The platform buyer named on the sale says yes. Body: { note? }
+router.post("/sales/:saleId/accept", requireAuth, requireRole(...OWNER_ROLES), async (req, res) => {
+  const { saleId } = req.params;
+  if (!isUuid(saleId)) return res.status(400).json({ error: "Invalid saleId." });
+  const note = req.body?.note ? String(req.body.note).trim().slice(0, 255) : null;
+  try {
+    const row = await withTransaction(async (client) => {
+      const saleRes = await client.query(
+        "SELECT sale_id, buyer_user_id, buyer_response, status FROM herd_sales WHERE sale_id = $1 FOR UPDATE",
+        [saleId]
+      );
+      if (saleRes.rowCount === 0) throw new HttpError(404, "Sale not found.");
+      const sale = saleRes.rows[0];
+      if (sale.buyer_user_id !== req.user.userId) {
+        throw new HttpError(403, "Only the buyer named on this sale can accept it.");
+      }
+      if (sale.status !== "pending_approval") throw new HttpError(409, `Sale is already ${sale.status}.`);
+      if (sale.buyer_response === "accepted") throw new HttpError(409, "You have already accepted this sale.");
+      await client.query(
+        "UPDATE herd_sales SET buyer_response = 'accepted', buyer_responded_at = NOW(), buyer_response_note = $2 WHERE sale_id = $1",
+        [saleId, note]
+      );
+      const full = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
+      return full.rows[0];
+    });
+    return res.json({
+      message: "You accepted this sale. It now waits for admin approval; the herd moves to your account when it is approved.",
+      sale: shapeSale(row),
+    });
+  } catch (err) {
+    return sendError(res, "POST /api/settlement/sales/:saleId/accept", err);
+  }
+});
+
+// --- POST /api/settlement/sales/:saleId/decline ------------------------------
+// The platform buyer says no. This closes the sale and the herd goes back to
+// the status it had before. Body: { note? }
+router.post("/sales/:saleId/decline", requireAuth, requireRole(...OWNER_ROLES), async (req, res) => {
+  const { saleId } = req.params;
+  if (!isUuid(saleId)) return res.status(400).json({ error: "Invalid saleId." });
+  const note = req.body?.note ? String(req.body.note).trim().slice(0, 255) : null;
+  try {
+    const row = await closePendingSale({
+      saleId, newStatus: "rejected", actorId: req.user.userId,
+      note: note ?? "Declined by the buyer.", onlySeller: false, onlyBuyer: true,
+    });
+    return res.json({ message: "You declined this sale. The herd is back to its previous status.", sale: shapeSale(row) });
+  } catch (err) {
+    return sendError(res, "POST /api/settlement/sales/:saleId/decline", err);
   }
 });
 
