@@ -16,6 +16,8 @@ import offeringRoutes from "./routes/offering.js";
 import cattleRoutes from "./routes/cattle.js";
 import blockchainRoutes from "./routes/blockchain.js";
 import settlementRoutes from "./routes/settlement.js";
+import expensesRoutes from "./routes/expenses.js";
+import lrpRoutes from "./routes/lrp.js";
 import feesRoutes from "./routes/fees.js";
 import fundsRoutes from "./routes/funds.js";
 
@@ -45,6 +47,8 @@ app.use("/api/herds", offeringRoutes);
 app.use("/api/cattle", cattleRoutes);
 app.use("/api/blockchain", blockchainRoutes);
 app.use("/api/settlement", settlementRoutes);
+app.use("/api/expenses", expensesRoutes);
+app.use("/api/lrp", lrpRoutes);
 app.use("/api/fees", feesRoutes);
 app.use("/api/funds", fundsRoutes);
 

@@ -73,8 +73,8 @@ export async function transferHerdToBuyer(client, saleId) {
   );
 
   await client.query(
-    `INSERT INTO herd_expenses (herd_id, category, description, amount, accrued_date, billing_direction)
-     VALUES ($1, 'purchase', $2, $3, $4::date, 'self')`,
+    `INSERT INTO herd_expenses (herd_id, category, description, amount, accrued_date, billing_direction, source)
+     VALUES ($1, 'purchase', $2, $3, $4::date, 'self', 'purchase')`,
     [newHerd.herd_id, `Purchase of "${baseName}" from ${sellerSlug}`.slice(0, 255), sale.gross_amount, sale.sale_date]
   );
 

@@ -24,7 +24,8 @@ const router = express.Router();
 //      lib/transfer.js). A whole herd moves, never part of one.
 //
 // Split rules (all math in whole cents, no floating point):
-//   expenses  = every herd_expenses row for the herd (self-billed + service-billed)
+//   expenses  = every ACTIVE herd_expenses row for the herd (self-billed + service-billed;
+//               voided costs are kept on record but do not count)
 //   net       = max(0, gross - expenses)
 //   investor  = floor(net * investor_tokens / total_supply)
 //   provider  = service-billed expenses (a feedyard billing the owner), paid
@@ -166,7 +167,7 @@ async function computeSettlement(db, { herdId, ownerId, grossCents, platformUser
   const expRes = await db.query(
     `SELECT billing_direction, billed_by_user_id, COALESCE(SUM(amount), 0) AS total
        FROM herd_expenses
-      WHERE herd_id = $1
+      WHERE herd_id = $1 AND status = 'active'
       GROUP BY billing_direction, billed_by_user_id`,
     [herdId]
   );
