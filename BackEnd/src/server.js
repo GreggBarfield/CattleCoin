@@ -14,6 +14,9 @@ import rancherRoutes from "./routes/rancher.js";
 import herdsRoutes from "./routes/herds.js";
 import cattleRoutes from "./routes/cattle.js";
 import blockchainRoutes from "./routes/blockchain.js";
+import settlementRoutes from "./routes/settlement.js";
+import feesRoutes from "./routes/fees.js";
+import fundsRoutes from "./routes/funds.js";
 
 dotenv.config();
 
@@ -39,6 +42,9 @@ app.use("/api/rancher", rancherRoutes);
 app.use("/api/herds", herdsRoutes);
 app.use("/api/cattle", cattleRoutes);
 app.use("/api/blockchain", blockchainRoutes);
+app.use("/api/settlement", settlementRoutes);
+app.use("/api/fees", feesRoutes);
+app.use("/api/funds", fundsRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/api/health", async (_req, res) => {

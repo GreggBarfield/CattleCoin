@@ -8,7 +8,36 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-async function recordInvestment({ herdId, investorSlug, tokensToBuy }) {
+// Works out "tokens remaining" for a payment that was already recorded.
+async function alreadyRecordedResult(db, herdId) {
+  const r = await db.query(
+    `SELECT h.purchase_status, h.tokens_sold, h.investor_pct, tp.total_supply
+       FROM herds h JOIN token_pools tp ON tp.herd_id = h.herd_id
+      WHERE h.herd_id = $1`,
+    [herdId]
+  );
+  if (r.rows.length === 0) return { tokensRemaining: null, newStatus: null, duplicate: true };
+  const x = r.rows[0];
+  const supply = parseInt(x.total_supply, 10);
+  const allocation = x.investor_pct != null ? Math.floor(supply * parseFloat(x.investor_pct) / 100) : supply;
+  return {
+    tokensRemaining: Math.max(0, allocation - parseInt(x.tokens_sold, 10)),
+    newStatus: x.purchase_status,
+    duplicate: true,
+  };
+}
+
+// paymentIntentId / amountCents: the Stripe payment this purchase belongs to.
+// The same payment can arrive twice (the /confirm call and the webhook); it is
+// recorded once, and the second arrival is a harmless no-op.
+async function recordInvestment({ herdId, investorSlug, tokensToBuy, paymentIntentId = null, amountCents = null }) {
+  if (paymentIntentId) {
+    const seen = await pool.query(
+      "SELECT 1 FROM investor_payments WHERE stripe_payment_intent_id = $1",
+      [paymentIntentId]
+    );
+    if (seen.rowCount > 0) return alreadyRecordedResult(pool, herdId);
+  }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -24,6 +53,30 @@ async function recordInvestment({ herdId, investorSlug, tokensToBuy }) {
 
     if (herdRow.rows.length === 0) throw new Error("Herd not found or not available");
     const hr = herdRow.rows[0];
+
+    if (paymentIntentId) {
+      const payer = await client.query(
+        "SELECT user_id FROM users WHERE slug = $1 AND role = 'investor'",
+        [investorSlug]
+      );
+      if (payer.rows.length === 0) throw new Error("Investor not found");
+      const paid = await client.query(
+        `INSERT INTO investor_payments (herd_id, user_id, tokens, amount, stripe_payment_intent_id)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (stripe_payment_intent_id) DO NOTHING
+         RETURNING payment_id`,
+        [herdId, payer.rows[0].user_id, tokensToBuy, ((amountCents ?? 0) / 100).toFixed(2), paymentIntentId]
+      );
+      if (paid.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return alreadyRecordedResult(pool, herdId);
+      }
+      // the first investor payment locks the herd's fee terms
+      await client.query(
+        "UPDATE herd_fee_terms SET locked_at = COALESCE(locked_at, NOW()) WHERE herd_id = $1",
+        [herdId]
+      );
+    }
 
     const totalSupply = parseInt(hr.total_supply, 10);
     const investorAllocation = hr.investor_pct != null
@@ -228,7 +281,7 @@ router.post("/confirm", requireAuth, requireRole("investor"), async (req, res) =
     const tokens = parseInt(tokensToBuy, 10);
 
     // Record the investment in our DB
-    const result = await recordInvestment({ herdId, investorSlug, tokensToBuy: tokens });
+    const result = await recordInvestment({ herdId, investorSlug, tokensToBuy: tokens, paymentIntentId: intent.id, amountCents: intent.amount_received ?? intent.amount });
 
     res.json({
       success: true,
@@ -274,6 +327,8 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
           herdId,
           investorSlug,
           tokensToBuy: parseInt(tokensToBuy, 10),
+          paymentIntentId: intent.id,
+          amountCents: intent.amount_received ?? intent.amount,
         });
         console.log(`Webhook: recorded ${tokensToBuy} tokens for ${investorSlug} in ${herdId}`);
       } catch (err) {
