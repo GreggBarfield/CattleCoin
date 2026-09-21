@@ -12,6 +12,8 @@ import { InvestPage } from "@/pages/InvestPage";
 import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
 import { FAQPage } from "@/pages/FAQPage";
+import { MyMoney } from "@/pages/MyMoney";
+import { Statement } from "@/pages/Statement";
 import { AuthProvider, useAuth, homePathForRole } from "@/context/AuthContext";
 
 // ── Route guard ───────────────────────────────────────────────────────────────
@@ -71,6 +73,15 @@ function AppRoutes() {
         <Route
           path="/invest/:herdId"
           element={<Protected role="investor"><InvestPage /></Protected>}
+        />
+
+        <Route
+          path="/investor/:slug/money"
+          element={<Protected role="investor"><MyMoney /></Protected>}
+        />
+        <Route
+          path="/investor/:slug/statements/:saleId"
+          element={<Protected role="investor"><Statement /></Protected>}
         />
 
         {/* Rancher portal */}

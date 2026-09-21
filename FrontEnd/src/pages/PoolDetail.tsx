@@ -14,6 +14,7 @@ import { SupplyChainStepper } from "@/components/lifecycle/SupplyChainStepper";
 import { PipelineBar } from "@/components/pool/PipelineBar";
 import { BudgetBreakdown } from "@/components/pool/BudgetBreakdown";
 import { CowsTable, CowsTableSkeleton } from "@/components/tables/CowsTable";
+import { HerdMoneyCards } from "@/components/pool/HerdMoneyCards";
 import { getPoolById, getPoolCows, getInvestorHoldings } from "@/lib/api";
 import type { PoolDetail as PoolDetailType, Cow, PurchaseStatus } from "@/lib/types";
 import { formatUsd, formatNumber } from "@/lib/utils";
@@ -218,6 +219,9 @@ export function PoolDetail() {
           </>
         ) : null}
       </div>
+
+      {/* Investor money: what you paid, what the herd has cost, LRP */}
+      {id && <HerdMoneyCards herdId={id} slug={resolvedSlug} />}
 
       {/* Two column: Pipeline + Stepper | Budget + Chart */}
       <div className="grid lg:grid-cols-2 gap-6">

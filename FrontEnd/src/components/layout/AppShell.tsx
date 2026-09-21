@@ -7,6 +7,7 @@ import {
   Tractor,
   LogOut,
   CircleHelp,
+  Wallet,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,12 @@ export function AppShell() {
             to: `/investor/${investorSlug}/holdings`,
             label: "Lots",
             icon: Warehouse,
+            end: false,
+          },
+          {
+            to: `/investor/${investorSlug}/money`,
+            label: "My Money",
+            icon: Wallet,
             end: false,
           },
         ]

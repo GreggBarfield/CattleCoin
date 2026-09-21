@@ -18,6 +18,7 @@ import blockchainRoutes from "./routes/blockchain.js";
 import settlementRoutes from "./routes/settlement.js";
 import expensesRoutes from "./routes/expenses.js";
 import lrpRoutes from "./routes/lrp.js";
+import myMoneyRoutes from "./routes/myMoney.js";
 import feesRoutes from "./routes/fees.js";
 import fundsRoutes from "./routes/funds.js";
 
@@ -49,6 +50,7 @@ app.use("/api/blockchain", blockchainRoutes);
 app.use("/api/settlement", settlementRoutes);
 app.use("/api/expenses", expensesRoutes);
 app.use("/api/lrp", lrpRoutes);
+app.use("/api/my-money", myMoneyRoutes); // investor: what I paid in, what I am owed
 app.use("/api/fees", feesRoutes);
 app.use("/api/funds", fundsRoutes);
 
