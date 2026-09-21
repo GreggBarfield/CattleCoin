@@ -9,6 +9,7 @@ import { Login } from "@/pages/Login";
 import { SignUp } from "@/pages/SignUp";
 import { Admin } from "@/pages/Admin";
 import { FeeSetup } from "@/pages/FeeSetup";
+import { HerdOps } from "@/pages/HerdOps";
 import { InvestPage } from "@/pages/InvestPage";
 import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
@@ -105,6 +106,10 @@ function AppRoutes() {
         <Route
           path="/admin/fees"
           element={<Protected role="admin"><FeeSetup /></Protected>}
+        />
+        <Route
+          path="/admin/herd-ops"
+          element={<Protected role="admin"><HerdOps /></Protected>}
         />
 
         <Route

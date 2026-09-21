@@ -361,6 +361,9 @@ export function Admin() {
               <Button asChild className="bg-amber-400 text-slate-950 hover:bg-amber-300">
                 <Link to="/admin/fees">Fee setup</Link>
               </Button>
+              <Button asChild className="bg-emerald-400 text-slate-950 hover:bg-emerald-300">
+                <Link to="/admin/herd-ops">Herd operations</Link>
+              </Button>
             </div>
           </div>
 
