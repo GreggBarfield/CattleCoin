@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
@@ -11,11 +12,20 @@ const BREED_LABEL = {
 
 const ALL_STAGES = ["RANCH","BACKGROUNDING","FEEDLOT","PROCESSING","DISTRIBUTION"];
 
-// ─── GET /api/investors/:slug/portfolio ───────────────────────────────────────
+// â”€â”€â”€ GET /api/investors/:slug/portfolio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns the Dashboard data scoped to a single investor (by slug, e.g. "investor2")
-router.get("/:slug/portfolio", async (req, res) => {
+// Security fix 2026-09-21: this route previously had no requireAuth at all -
+// anyone who knew (or guessed) an investor's slug could read that investor's
+// full portfolio. Now requires a logged-in investor/admin, and (unless the
+// caller is an admin) the token's own slug must match the :slug being read.
+// See handoff-next-chat.md / technical reference section 13.3.
+router.get("/:slug/portfolio", requireAuth, requireRole("investor", "admin"), async (req, res) => {
   try {
     const { slug } = req.params;
+
+    if (req.user.role !== "admin" && req.user.slug !== slug) {
+      return res.status(403).json({ error: "Investors may only view their own portfolio." });
+    }
 
     // Resolve user
     const userRes = await pool.query(
@@ -140,11 +150,18 @@ router.get("/:slug/portfolio", async (req, res) => {
   }
 });
 
-// ─── GET /api/investors/:slug/holdings ────────────────────────────────────────
+// â”€â”€â”€ GET /api/investors/:slug/holdings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns only this investor's held pools (for the Holdings page).
-router.get("/:slug/holdings", async (req, res) => {
+// Security fix 2026-09-21: same fix as /portfolio above - requireAuth plus a
+// same-investor-or-admin check.
+router.get("/:slug/holdings", requireAuth, requireRole("investor", "admin"), async (req, res) => {
   try {
     const { slug } = req.params;
+
+    if (req.user.role !== "admin" && req.user.slug !== slug) {
+      return res.status(403).json({ error: "Investors may only view their own holdings." });
+    }
+
     const userRes = await pool.query(
       "SELECT user_id FROM users WHERE slug = $1 AND role = 'investor'",
       [slug]

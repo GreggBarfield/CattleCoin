@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../db.js";
+import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
@@ -148,10 +149,39 @@ router.get("/:cowId", async (req, res) => {
   }
 });
 
-router.patch("/:cowId", async (req, res) => {
+// PATCH /api/cattle/:cowId requires a logged-in rancher/feedlot/admin, and
+// (unless the caller is an admin) the cow's herd must belong to the caller.
+// Security fix 2026-09-21: this route previously had no requireAuth and no
+// ownership check at all - anyone who could reach the API and knew a cowId
+// could edit any animal's record. See handoff-next-chat.md / technical
+// reference section 13.3.
+router.patch("/:cowId", requireAuth, requireRole("rancher", "feedlot", "admin"), async (req, res) => {
   const { cowId } = req.params;
   if (!isNumericId(cowId)) {
     return res.status(400).json({ error: "Invalid cowId. Expected a numeric id." });
+  }
+
+  try {
+    const owner = await pool.query(
+      `
+      SELECT a.animal_id, h.rancher_id
+      FROM animals a
+      LEFT JOIN herds h ON h.herd_id = a.herd_id
+      WHERE a.animal_id = $1
+      `,
+      [cowId]
+    );
+
+    if (owner.rowCount === 0) {
+      return res.status(404).json({ error: "Cow not found." });
+    }
+
+    const rancherId = owner.rows[0].rancher_id;
+    if (req.user.role !== "admin" && rancherId !== req.user.userId) {
+      return res.status(403).json({ error: "Rancher is not allowed to edit this cow." });
+    }
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to verify cow ownership." });
   }
 
   const fields = [];
