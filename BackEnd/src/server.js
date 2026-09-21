@@ -13,6 +13,8 @@ import usersRoutes from "./routes/users.js";
 import rancherRoutes from "./routes/rancher.js";
 import herdsRoutes from "./routes/herds.js";
 import offeringRoutes from "./routes/offering.js";
+import stagesRoutes from "./routes/stages.js";
+import carcassRoutes from "./routes/carcass.js";
 import cattleRoutes from "./routes/cattle.js";
 import blockchainRoutes from "./routes/blockchain.js";
 import settlementRoutes from "./routes/settlement.js";
@@ -46,7 +48,9 @@ app.use("/api/users",    usersRoutes);     // user list by role
 app.use("/api/rancher", rancherRoutes);
 app.use("/api/herds", herdsRoutes);
 app.use("/api/herds", offeringRoutes);
+app.use("/api/herds", stagesRoutes);
 app.use("/api/cattle", cattleRoutes);
+app.use("/api/carcass", carcassRoutes); // per-animal carcass grade records (record-only, no payout yet)
 app.use("/api/blockchain", blockchainRoutes);
 app.use("/api/settlement", settlementRoutes);
 app.use("/api/expenses", expensesRoutes);
