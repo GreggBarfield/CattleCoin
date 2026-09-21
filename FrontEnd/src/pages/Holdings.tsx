@@ -1,64 +1,71 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { PoolsTable, PoolsTableSkeleton } from "@/components/tables/PoolsTable";
-import type { PoolSortKey } from "@/components/tables/PoolsTable";
-import { getPools } from "@/lib/api";
-import { STAGES } from "@/lib/types";
-import type { Pool } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LotsTable } from "@/components/marketplace/LotsTable";
+import { DivisionExplainer, RetainedComingSoon } from "@/components/marketplace/ProductPanels";
+import { getMarketplace } from "@/lib/marketplace";
+import type { Division, MarketLot } from "@/lib/marketplace";
+import { cn } from "@/lib/utils";
 
+type DivisionFilter = Division | "all";
+type Availability = "available" | "all";
+type Sort = "newest" | "price_low" | "tokens_left";
+
+const SELECT_CLASS =
+  "h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+// The marketplace: every lot open to investors, split by who is raising the
+// money (Cow-Calf or Feeders) and how the investor is paid. Real numbers only.
 export function Holdings() {
   const { slug } = useParams<{ slug: string }>();
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const resolvedSlug = slug ?? "";
+  const [result, setResult] = useState<{ lots: MarketLot[] | null; error: string | null } | null>(null);
 
+  const [division, setDivision] = useState<DivisionFilter>("all");
   const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("ALL");
+  const [availability, setAvailability] = useState<Availability>("available");
   const [verifiedFilter, setVerifiedFilter] = useState("ALL");
-  const [sortKey, setSortKey] = useState<PoolSortKey>("positionValueUsd");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sort, setSort] = useState<Sort>("newest");
 
   useEffect(() => {
-    setLoading(true);
-    // Fetch all herds so investor can browse the full marketplace
-    getPools()
-      .then(setPools)
-      .catch(() => setError("Failed to load lots."))
-      .finally(() => setLoading(false));
+    let alive = true;
+    getMarketplace()
+      .then((lots) => alive && setResult({ lots, error: null }))
+      .catch(() => alive && setResult({ lots: null, error: "Failed to load lots." }));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  function handleSort(key: PoolSortKey) {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  }
+  const loading = result === null;
+  const error = result?.error ?? null;
+  const all = result?.lots ?? [];
 
-  const filtered = pools.filter((p) => {
-    const matchesSearch =
-      !search ||
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.herdId.toLowerCase().includes(search.toLowerCase()) ||
-      p.geneticsLabel.toLowerCase().includes(search.toLowerCase());
-    const matchesStage =
-      stageFilter === "ALL" || p.dominantStage === stageFilter;
-    const matchesVerified =
-      verifiedFilter === "ALL" ||
-      (verifiedFilter === "VERIFIED" && p.verified) ||
-      (verifiedFilter === "UNVERIFIED" && !p.verified);
-    return matchesSearch && matchesStage && matchesVerified;
+  const countOf = (d: DivisionFilter) => (d === "all" ? all.length : all.filter((l) => l.division === d).length);
+
+  const filtered = all
+    .filter((l) => division === "all" || l.division === division)
+    .filter((l) => availability === "all" || l.canInvest)
+    .filter((l) => verifiedFilter === "ALL" || (verifiedFilter === "VERIFIED" ? l.verified : !l.verified))
+    .filter((l) => {
+      const q = search.trim().toLowerCase();
+      return !q || l.name.toLowerCase().includes(q) || l.breed.toLowerCase().includes(q) || l.herdId.toLowerCase().includes(q);
+    });
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "price_low") return (a.pricePerToken ?? Infinity) - (b.pricePerToken ?? Infinity);
+    if (sort === "tokens_left") return b.tokensRemaining - a.tokensRemaining;
+    return 0; // newest first is the order the server sends
   });
+
+  const filtersActive = search !== "" || verifiedFilter !== "ALL" || availability !== "available" || sort !== "newest";
+  function clearFilters() {
+    setSearch("");
+    setVerifiedFilter("ALL");
+    setAvailability("available");
+    setSort("newest");
+  }
 
   if (error) {
     return (
@@ -71,82 +78,108 @@ export function Holdings() {
     );
   }
 
+  const tabs: { key: DivisionFilter; label: string }[] = [
+    { key: "all", label: "All lots" },
+    { key: "cow-calf", label: "Cow-Calf" },
+    { key: "feeder", label: "Feeders" },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">All Lots</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Marketplace</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Browse all available herds — click any to view details or invest
+            Lots open to investors. Pick a division to see how that kind of lot works.
           </p>
         </div>
         {!loading && (
           <span className="text-sm text-muted-foreground">
-            {filtered.length} of {pools.length} lots
+            {filtered.length} of {all.length} lots
           </span>
         )}
       </div>
 
+      {/* Division switch */}
+      <div role="tablist" aria-label="Division" className="inline-flex rounded-lg border bg-slate-50 p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={division === t.key}
+            onClick={() => setDivision(t.key)}
+            className={cn(
+              "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+              division === t.key ? "bg-white shadow-sm text-foreground" : "text-slate-600 hover:text-foreground",
+            )}
+          >
+            {t.label} {!loading && <span className="text-xs text-slate-500">({countOf(t.key)})</span>}
+          </button>
+        ))}
+      </div>
+
+      <DivisionExplainer division={division} />
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <Input
-          placeholder="Search lots…"
+          placeholder="Search lots..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-72"
         />
-        <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All Stages" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Stages</SelectItem>
-            {STAGES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={verifiedFilter} onValueChange={setVerifiedFilter}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="All" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All</SelectItem>
-            <SelectItem value="VERIFIED">Verified</SelectItem>
-            <SelectItem value="UNVERIFIED">Unverified</SelectItem>
-          </SelectContent>
-        </Select>
-        {(search || stageFilter !== "ALL" || verifiedFilter !== "ALL") && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setSearch(""); setStageFilter("ALL"); setVerifiedFilter("ALL"); }}
-          >
+        <select
+          aria-label="Availability"
+          className={SELECT_CLASS}
+          value={availability}
+          onChange={(e) => setAvailability(e.target.value as Availability)}
+        >
+          <option value="available">Open to buy now</option>
+          <option value="all">Include fully subscribed</option>
+        </select>
+        <select
+          aria-label="Verified"
+          className={SELECT_CLASS}
+          value={verifiedFilter}
+          onChange={(e) => setVerifiedFilter(e.target.value)}
+        >
+          <option value="ALL">Verified or not</option>
+          <option value="VERIFIED">Verified only</option>
+          <option value="UNVERIFIED">Not verified</option>
+        </select>
+        <select aria-label="Sort by" className={SELECT_CLASS} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+          <option value="newest">Newest first</option>
+          <option value="price_low">Price per token, low to high</option>
+          <option value="tokens_left">Most tokens left</option>
+        </select>
+        {filtersActive && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear filters
           </Button>
         )}
       </div>
 
-      {/* Table */}
+      {/* Lots */}
       {loading ? (
-        <PoolsTableSkeleton />
-      ) : filtered.length === 0 ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="text-center py-12 text-slate-500 space-y-2">
-          <p>No lots match your filters.</p>
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStageFilter("ALL"); setVerifiedFilter("ALL"); }}>
-            Clear filters
-          </Button>
+          <p>{all.length === 0 ? "No lots are open to investors right now." : "No lots match your filters."}</p>
+          {filtersActive && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </div>
       ) : (
-        // Pass slug so PoolsTable navigates to /investor/:slug/holdings/:id
-        <PoolsTable
-          pools={filtered}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          slug={slug}
-        />
+        <LotsTable lots={sorted} slug={resolvedSlug} />
       )}
+
+      <RetainedComingSoon />
     </div>
   );
 }

@@ -342,11 +342,11 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: /sign out/i })).toBeTruthy();
   });
 
-  test("investor user sees Dashboard and Lots nav links", () => {
+  test("investor user sees Dashboard and Marketplace nav links", () => {
     const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /lots/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /marketplace/i })).toBeTruthy();
   });
 
   test("rancher user sees My Herds nav link", () => {

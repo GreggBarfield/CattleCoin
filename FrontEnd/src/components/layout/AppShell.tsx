@@ -47,7 +47,7 @@ export function AppShell() {
           },
           {
             to: `/investor/${investorSlug}/holdings`,
-            label: "Lots",
+            label: "Marketplace",
             icon: Warehouse,
             end: false,
           },

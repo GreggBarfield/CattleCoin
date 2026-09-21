@@ -90,7 +90,7 @@ export function PoolDetail() {
         <h2 className="text-lg font-semibold">Herd not found</h2>
         <p className="text-slate-500">No herd with ID "{id}" exists.</p>
         <Link to={`/investor/${resolvedSlug}/holdings`}>
-          <Button variant="outline">Back to Lots</Button>
+          <Button variant="outline">Back to Marketplace</Button>
         </Link>
       </div>
     );
@@ -125,7 +125,7 @@ export function PoolDetail() {
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm text-slate-500">
         <Link to={`/investor/${resolvedSlug}/holdings`} className="hover:underline">
-          All Lots
+          Marketplace
         </Link>
         <ChevronRight className="h-3.5 w-3.5" />
         {loading ? <Skeleton className="h-4 w-24" /> : <span>{pool?.name}</span>}
