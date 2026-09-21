@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import {
   BellRing,
   Building2,
@@ -356,6 +357,9 @@ export function Admin() {
               >
                 <RefreshCw className="h-4 w-4" />
                 Simulate Refresh
+              </Button>
+              <Button asChild className="bg-amber-400 text-slate-950 hover:bg-amber-300">
+                <Link to="/admin/fees">Fee setup</Link>
               </Button>
             </div>
           </div>

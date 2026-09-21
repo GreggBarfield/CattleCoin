@@ -8,6 +8,7 @@ import { Rancher } from "@/pages/Rancher";
 import { Login } from "@/pages/Login";
 import { SignUp } from "@/pages/SignUp";
 import { Admin } from "@/pages/Admin";
+import { FeeSetup } from "@/pages/FeeSetup";
 import { InvestPage } from "@/pages/InvestPage";
 import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
@@ -100,6 +101,10 @@ function AppRoutes() {
         <Route
           path="/admin"
           element={<Protected role="admin"><Admin /></Protected>}
+        />
+        <Route
+          path="/admin/fees"
+          element={<Protected role="admin"><FeeSetup /></Protected>}
         />
 
         <Route
