@@ -1,9 +1,12 @@
 import { toCents } from "./routeHelpers.js";
 import { loadDefaults, loadHerdTerms, shapeTerms, writeAudit } from "./feeTerms.js";
+import { ensureHerdValueCost } from "./costs.js";
 
 // What every herd needs before investors can buy into it:
 //   1. a token pool (the off-chain share ledger; total supply = head count)
 //   2. fee terms (copied from the platform defaults if the herd has none yet)
+//   3. for a rancher-owned herd, its starting value booked as a cost (its
+//      listing price), so investors share only the gain above that value
 //
 // Used by "open to investors" (routes/offering.js) and by the feedlot claim
 // route, so no herd can reach investors by either road without both.
@@ -12,7 +15,7 @@ import { loadDefaults, loadHerdTerms, shapeTerms, writeAudit } from "./feeTerms.
 // Fee terms lock at the first investor purchase, so the terms in place when a
 // herd is opened are the terms the investors buy under.
 
-export async function prepareHerdForInvestors(client, { herdId, actorUserId }) {
+export async function prepareHerdForInvestors(client, { herdId, actorUserId, listingPriceCents = null }) {
   const herdRes = await client.query("SELECT head_count FROM herds WHERE herd_id = $1", [herdId]);
   const headCount = Number(herdRes.rows[0]?.head_count ?? 0);
 
@@ -66,6 +69,9 @@ export async function prepareHerdForInvestors(client, { herdId, actorUserId }) {
     });
   }
 
+  // 3. starting value (rancher-owned herds only)
+  const value = await ensureHerdValueCost(client, herdId, { priceCents: listingPriceCents, userId: actorUserId });
+
   const warnings = [];
   if (
     Number(termsRow.raise_fee_pct) === 0 &&
@@ -84,6 +90,9 @@ export async function prepareHerdForInvestors(client, { herdId, actorUserId }) {
     },
     terms: shapeTerms(termsRow),
     termsCreated,
+    startingValue: value.amountCents != null && (value.booked || value.reason === "already booked")
+      ? { booked: true, amount: value.amountCents / 100 }
+      : { booked: false },
     warnings,
   };
 }

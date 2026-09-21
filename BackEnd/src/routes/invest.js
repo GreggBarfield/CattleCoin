@@ -1,6 +1,7 @@
 ﻿import express from "express";
 import Stripe from "stripe";
 import pool from "../db.js";
+import { ensureHerdValueCost } from "../lib/costs.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
@@ -71,6 +72,9 @@ async function recordInvestment({ herdId, investorSlug, tokensToBuy, paymentInte
         await client.query("ROLLBACK");
         return alreadyRecordedResult(pool, herdId);
       }
+      // a rancher's herd is valued at its listing price (normally booked when the herd was opened;
+      // this is the safety net for a herd that was listed before that rule existed)
+      await ensureHerdValueCost(client, herdId, { createOnly: true });
       // the first investor payment locks the herd's fee terms
       await client.query(
         "UPDATE herd_fee_terms SET locked_at = COALESCE(locked_at, NOW()) WHERE herd_id = $1",

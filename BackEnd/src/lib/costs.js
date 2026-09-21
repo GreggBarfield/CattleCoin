@@ -1,4 +1,4 @@
-import { HttpError } from "./routeHelpers.js";
+import { HttpError, toCents, money } from "./routeHelpers.js";
 
 // Shared rules for herd costs (routes/expenses.js) and LRP records (routes/lrp.js).
 //
@@ -12,8 +12,9 @@ import { HttpError } from "./routeHelpers.js";
 // and leaves it out of the sale split. Every change goes to a history table.
 
 export const OWNER_ROLES = ["rancher", "feedlot"];
-// 'purchase' (booked when the herd was bought) and 'lrp_premium' (booked from an
-// LRP record) are system-made and cannot be typed in by hand.
+// 'purchase' (booked when the herd was bought), 'lrp_premium' (booked from an
+// LRP record) and 'herd_value' (a rancher's herd valued at its listing price when
+// it is opened to investors) are system-made and cannot be typed in by hand.
 export const MANUAL_CATEGORIES = ["feed", "yardage", "vet", "death_loss_reserve", "other"];
 export const MAX_AMOUNT_DOLLARS = 999999999;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -112,6 +113,9 @@ export function costChangeRule({ isAdmin, isOwner, locked, saleState, expense })
   if (saleState === "pending_approval") {
     return no(409, "A sale is waiting for approval, so costs are locked. Ask an admin for a correction.");
   }
+  if (expense.source === "value") {
+    return no(403, "This is the herd's starting value, booked by the system when the herd was opened to investors. Ask an admin to correct it.");
+  }
   if (expense.source !== "manual") {
     return no(403, "This cost was booked by the system when the herd was bought. Ask an admin to correct it.");
   }
@@ -163,5 +167,63 @@ export async function writeExpenseHistory(client, { expenseId, herdId, action, u
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [expenseId, herdId, action, userId ?? null, reason || null,
      before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null]
+  );
+}
+
+// A rancher's herd has no purchase price, so its starting value would otherwise
+// be missing from the costs and investors would be paid their money back AND a
+// share of the whole sale. When a rancher-owned herd goes to investors, its
+// listing price is booked as the herd's starting cost (category 'herd_value',
+// source 'value'), just as a feedlot's purchase price is. Investors then share
+// only the gain above that value.
+//
+//   priceCents   the listing price to book (default: the herd's current one)
+//   createOnly   do not change an existing starting-value cost (used once
+//                investors have paid in, as a safety net)
+//
+// Feedlot-owned herds are not touched: the feedlot's own purchase (or the cost
+// it logs) is its starting cost. Call inside a transaction with the herd locked.
+export async function ensureHerdValueCost(client, herdId, { priceCents = null, userId = null, createOnly = false } = {}) {
+  const h = await client.query(
+    `SELECT h.listing_price, u.role
+       FROM herds h JOIN users u ON u.user_id = h.rancher_id
+      WHERE h.herd_id = $1`,
+    [herdId]
+  );
+  if (h.rowCount === 0 || h.rows[0].role !== "rancher") return { booked: false, reason: "not a rancher-owned herd" };
+  const price = priceCents ?? (h.rows[0].listing_price != null ? toCents(h.rows[0].listing_price) : 0);
+  if (!(price > 0)) return { booked: false, reason: "no listing price" };
+
+  const cur = await client.query(
+    "SELECT expense_id, amount FROM herd_expenses WHERE herd_id = $1 AND source = 'value' AND status = 'active'",
+    [herdId]
+  );
+  if (cur.rowCount > 0) {
+    if (createOnly || toCents(cur.rows[0].amount) === price) {
+      return { booked: false, reason: "already booked", amountCents: toCents(cur.rows[0].amount) };
+    }
+    await client.query(
+      "UPDATE herd_expenses SET amount = $2, updated_at = NOW() WHERE expense_id = $1",
+      [cur.rows[0].expense_id, money(price)]
+    );
+    return { booked: true, updated: true, amountCents: price };
+  }
+  await client.query(
+    `INSERT INTO herd_expenses
+       (herd_id, category, description, amount, accrued_date, billing_direction, source, created_by_user_id)
+     VALUES ($1, 'herd_value', $2, $3, CURRENT_DATE, 'self', 'value', $4)`,
+    [herdId, "Starting value of the herd when it was opened to investors (its listing price)", money(price), userId]
+  );
+  return { booked: true, updated: false, amountCents: price };
+}
+
+// When a herd is taken back off the marketplace (nobody has bought), its
+// starting-value cost goes with it; opening it again books a fresh one.
+export async function voidHerdValueCost(client, herdId, reason = "Herd closed to investors.") {
+  await client.query(
+    `UPDATE herd_expenses
+        SET status = 'voided', voided_at = NOW(), void_reason = $2, updated_at = NOW()
+      WHERE herd_id = $1 AND source = 'value' AND status = 'active'`,
+    [herdId, reason]
   );
 }

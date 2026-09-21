@@ -3,6 +3,7 @@ import pool from "../db.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { HttpError, isUuid, toCents, dollars, money, withTransaction, sendError } from "../lib/routeHelpers.js";
 import { prepareHerdForInvestors } from "../lib/offering.js";
+import { voidHerdValueCost } from "../lib/costs.js";
 
 const router = express.Router();
 
@@ -12,19 +13,23 @@ const router = express.Router();
 //   POST /api/herds/:herdId/close-to-investors
 //
 // One generic route for any producer that owns the herd. Which roles may use it
-// is set by OPEN_ROLES below: feedlots for now (feeders first); add "rancher"
-// when the ranchers track goes live (direct raise).
+// is set by OPEN_ROLES below: feedlots and ranchers (a rancher can raise money
+// directly on their own herd).
 //
 // Opening a herd:
 //   - makes sure it has a token pool (off-chain share ledger, supply = head count)
 //   - makes sure it has fee terms (copied from the platform defaults if none)
+//   - for a rancher-owned herd, books the herd's value (its listing price) as
+//     the herd's starting cost, so investors get their money back and share
+//     only the gain above that value (a feedlot's purchase price does this job
+//     for a feeder herd)
 //   - sets investor_pct and the listing price, and lists it (feedlot_status
 //     'listed', which is what every investor-facing query looks for)
 // It does NOT deploy the on-chain token; the existing publish route does that.
 //
 // A herd that already has investors cannot be closed here.
 
-const OPEN_ROLES = ["feedlot"];
+const OPEN_ROLES = ["feedlot", "rancher"];
 const MAX_PRICE_DOLLARS = 9999999999;
 
 function parsePct(value) {
@@ -79,7 +84,7 @@ router.post("/:herdId/open-to-investors", requireAuth, requireRole(...OPEN_ROLES
         throw new HttpError(400, "listingPrice is required - this herd has no price yet.");
       }
 
-      const prep = await prepareHerdForInvestors(client, { herdId, actorUserId: ownerId });
+      const prep = await prepareHerdForInvestors(client, { herdId, actorUserId: ownerId, listingPriceCents: priceCents });
       const supply = prep.pool.totalSupply;
       if (!(supply > 0)) throw new HttpError(409, "This herd has no head count, so no shares can be offered.");
       const allocation = Math.floor((supply * investorPct) / 100);
@@ -116,6 +121,7 @@ router.post("/:herdId/open-to-investors", requireAuth, requireRole(...OPEN_ROLES
       tokenPool: prep.pool,
       feeTerms: prep.terms,
       feeTermsCreatedFromDefaults: prep.termsCreated,
+      startingValue: prep.startingValue,
       warnings: prep.warnings,
     });
   } catch (err) {
@@ -155,6 +161,7 @@ router.post("/:herdId/close-to-investors", requireAuth, requireRole(...OPEN_ROLE
         "UPDATE herds SET feedlot_status = 'pending', purchase_status = 'pending', last_updated = NOW() WHERE herd_id = $1",
         [herdId]
       );
+      await voidHerdValueCost(client, herdId);
       return h;
     });
     return res.json({
