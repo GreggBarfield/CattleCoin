@@ -5,13 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KpiCard, KpiCardSkeleton } from "@/components/common/KpiCard";
 import { StageBadge } from "@/components/common/StageBadge";
 import { VerifiedBadge } from "@/components/common/VerifiedBadge";
-import { LineChartCard, LineChartCardSkeleton } from "@/components/charts/LineChartCard";
 import { PoolsTable, PoolsTableSkeleton } from "@/components/tables/PoolsTable";
 import { MyInvestments } from "@/components/common/MyInvestments";
 import type { PoolSortKey } from "@/components/tables/PoolsTable";
 import { getInvestorPortfolio, getInvestorHoldings } from "@/lib/api";
 import type { PortfolioSummary, Pool } from "@/lib/types";
-import { formatUsd, formatPct, formatDateTime } from "@/lib/utils";
+import { formatUsd, formatDateTime } from "@/lib/utils";
 
 export function InvestorDashboard() {
   const { slug } = useParams<{ slug: string }>();
@@ -21,7 +20,7 @@ export function InvestorDashboard() {
   const [holdings, setHoldings] = useState<Pool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<PoolSortKey>("positionValueUsd");
+  const [sortKey, setSortKey] = useState<PoolSortKey>("paidIn");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
@@ -85,7 +84,7 @@ export function InvestorDashboard() {
         )}
       </div>
 
-      {/* KPI Cards — all labeled */}
+      {/* KPI Cards â€” all labeled */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <>
@@ -94,15 +93,22 @@ export function InvestorDashboard() {
         ) : data ? (
           <>
             <KpiCard
-              label="Portfolio Value"
-              value={formatUsd(data.portfolioValueUsd)}
-              delta={data.change30dPct}
-              trend={data.change30dPct >= 0 ? "up" : "down"}
+              label="Paid In"
+              value={formatUsd(data.totals.paidIn)}
+              subtitle="total across all your lots"
+              trend="neutral"
             />
             <KpiCard
-              label="30-Day Change"
-              value={formatPct(data.change30dPct)}
-              trend={data.change30dPct >= 0 ? "up" : "down"}
+              label="Still Invested"
+              value={formatUsd(data.totals.stillInvested)}
+              subtitle="paid in, not yet sold"
+              trend="neutral"
+            />
+            <KpiCard
+              label="Owed To You"
+              value={formatUsd(data.totals.owedFromSales)}
+              subtitle="from approved sales, not yet paid"
+              trend={data.totals.owedFromSales > 0 ? "up" : "neutral"}
             />
             <KpiCard
               label="Lots Held"
@@ -110,31 +116,14 @@ export function InvestorDashboard() {
               subtitle="active investments"
               trend="neutral"
             />
-            <KpiCard
-              label="Avg Risk Score"
-              value={data.avgRisk.toString()}
-              subtitle="0 = low · 100 = high"
-              trend="neutral"
-            />
           </>
         ) : null}
       </div>
 
-      {/* Portfolio Value Chart */}
-      {loading ? (
-        <LineChartCardSkeleton />
-      ) : data ? (
-        <LineChartCard
-          title="Portfolio Value (30 days)"
-          series={data.history30d}
-          valuePrefix="$"
-        />
-      ) : null}
-
-      {/* My Investments — clickable cards, each navigates to /investor/:slug/holdings/:id */}
+      {/* My Investments â€” clickable cards, each navigates to /investor/:slug/holdings/:id */}
       <MyInvestments pools={holdings} loading={loading} slug={resolvedSlug} />
 
-      {/* Recent Lifecycle Events — show herd name not raw UUID */}
+      {/* Recent Lifecycle Events â€” show herd name not raw UUID */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent Lifecycle Events</CardTitle>
@@ -156,7 +145,7 @@ export function InvestorDashboard() {
                         to={`/investor/${resolvedSlug}/holdings/${ev.poolId}`}
                         className="font-medium text-blue-600 hover:underline truncate block"
                       >
-                        {/* Show herd name — fall back to ID only if name unavailable */}
+                        {/* Show herd name â€” fall back to ID only if name unavailable */}
                         {herdNameMap.get(ev.poolId) ?? ev.poolId}
                       </Link>
                     )}
@@ -181,7 +170,7 @@ export function InvestorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Top Lots — "View all" goes to /investor/:slug/holdings */}
+      {/* Top Lots â€” "View all" goes to /investor/:slug/holdings */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Top Lots by Value</CardTitle>

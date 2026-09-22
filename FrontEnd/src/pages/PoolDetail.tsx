@@ -9,10 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KpiCard, KpiCardSkeleton } from "@/components/common/KpiCard";
-import { LineChartCard, LineChartCardSkeleton } from "@/components/charts/LineChartCard";
 import { SupplyChainStepper } from "@/components/lifecycle/SupplyChainStepper";
 import { PipelineBar } from "@/components/pool/PipelineBar";
-import { BudgetBreakdown } from "@/components/pool/BudgetBreakdown";
+import { CostBreakdown } from "@/components/pool/CostBreakdown";
 import { CowsTable, CowsTableSkeleton } from "@/components/tables/CowsTable";
 import { HerdMoneyCards } from "@/components/pool/HerdMoneyCards";
 import { getPoolById, getPoolCows, getInvestorHoldings } from "@/lib/api";
@@ -36,7 +35,7 @@ const STATUS_STYLES: Record<PurchaseStatus, string> = {
 
 function abbreviateAddress(addr: string): string {
   if (!addr || addr === "#" || addr.length <= 14) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+  return `${addr.slice(0, 8)}â€¦${addr.slice(-6)}`;
 }
 
 export function PoolDetail() {
@@ -96,7 +95,7 @@ export function PoolDetail() {
     );
   }
 
-  // ── Derived values ──────────────────────────────────────────────────────────
+  // â”€â”€ Derived values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pool = data?.pool;
   const totalSupply = pool?.totalSupply ?? 1;
 
@@ -104,11 +103,6 @@ export function PoolDetail() {
   const tokenAmount = investorTokenAmount;
   const ownershipPct = totalSupply > 0 ? tokenAmount / totalSupply : 0;
   const isOwner = tokenAmount > 0;
-
-  // Net expected return proportional to this investor's ownership share only
-  const investorNetExpected = pool
-    ? Math.round(pool.netExpectedUsd * ownershipPct)
-    : 0;
 
   // Tokens still available to purchase on the market
   const tokensRemaining = pool
@@ -167,33 +161,29 @@ export function PoolDetail() {
         </div>
       ) : null}
 
-      {/* KPI Cards — all investor-specific and labeled */}
+      {/* KPI Cards â€” all investor-specific and labeled */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <><KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton /></>
         ) : pool ? (
           <>
-            {/* 1. Total herd value */}
+            {/* 1. Real money raised so far, from all investors - not a projected value */}
             <KpiCard
-              label="Herd Value"
-              value={formatUsd(pool.positionValueUsd)}
+              label="Raised So Far"
+              value={formatUsd(pool.totalRaised ?? 0)}
               subtitle={`Listed at ${formatUsd(pool.listingPrice)}`}
               trend="neutral"
             />
 
-            {/* 2. Net expected return — investor's share only */}
+            {/* 2. Real costs logged so far - not a projected return */}
             <KpiCard
-              label={isOwner ? "Your Net Expected" : "Total Net Expected"}
-              value={formatUsd(isOwner ? investorNetExpected : pool.netExpectedUsd)}
-              subtitle={
-                isOwner
-                  ? `Your ${(ownershipPct * 100).toFixed(1)}% share`
-                  : pool.netExpectedUsd >= 0 ? "profitable" : "at risk"
-              }
-              trend={pool.netExpectedUsd >= 0 ? "up" : "down"}
+              label="Costs So Far"
+              value={formatUsd(pool.costsTotal ?? 0)}
+              subtitle="active costs logged for this herd"
+              trend="neutral"
             />
 
-            {/* 3. THIS investor's tokens — not aggregate */}
+            {/* 3. THIS investor's tokens â€” not aggregate */}
             <KpiCard
               label="Your Tokens"
               value={
@@ -212,8 +202,8 @@ export function PoolDetail() {
             {/* 4. Risk score */}
             <KpiCard
               label="Risk Score"
-              value={(pool as any).riskScore != null ? String((pool as any).riskScore) : "–"}
-              subtitle="0 = low · 100 = high"
+              value={(pool as any).riskScore != null ? String((pool as any).riskScore) : "â€“"}
+              subtitle="0 = low Â· 100 = high"
               trend="neutral"
             />
           </>
@@ -248,27 +238,15 @@ export function PoolDetail() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-base">Budget Breakdown</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Cost Breakdown</CardTitle></CardHeader>
             <CardContent>
               {loading ? (
                 <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
               ) : data ? (
-                <BudgetBreakdown items={data.budgetBreakdown} />
+                <CostBreakdown items={data.costBreakdown} />
               ) : null}
             </CardContent>
           </Card>
-
-          {/* Herd Value chart — placeholder until real history endpoint is built */}
-          {/* TODO: Replace series with real data from GET /api/pools/:id/valuation-history */}
-          {loading ? (
-            <LineChartCardSkeleton />
-          ) : data ? (
-            <LineChartCard
-              title="Herd Value (30 days)"
-              series={data.valuationHistory30d}
-              valuePrefix="$"
-            />
-          ) : null}
         </div>
       </div>
 
@@ -301,7 +279,7 @@ export function PoolDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Individual Cattle Records ({cowsLoading ? "…" : cows.length} head)
+            Individual Cattle Records ({cowsLoading ? "â€¦" : cows.length} head)
           </CardTitle>
           <Button variant="outline" size="sm" className="gap-1.5">
             <PlusCircle className="h-4 w-4" /> Add Cattle

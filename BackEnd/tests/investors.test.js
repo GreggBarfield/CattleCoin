@@ -29,20 +29,32 @@ function auth(token) {
   return { Authorization: `Bearer ${token}` };
 }
 
-const herdRow = {
-  herd_id: "herd-1", rancher_id: "r1", herd_name: "Test Herd",
-  listing_price: "10000", purchase_status: "available", head_count: "40",
-  verified_flag: true, last_updated: new Date().toISOString(), cohort_label: null,
-  season: "Fall", breed_code: "AN", dominant_stage: "RANCH", risk_score: 55,
-  pool_id: "pool-1", total_supply: "20", contract_address: "",
-  token_amount: "5", position_value_usd: "12500",
+// Row shape returned by lib/investorMoney.js's herd query.
+const moneyHerdRow = {
+  herd_id: "herd-1", herd_name: "Test Herd", feedlot_status: "listed",
+  head_count: "40", listing_price: "10000", owner_role: "rancher",
+  total_supply: "20", tokens: "5", costs_total: "1000",
 };
 
-// â”€â”€â”€ GET /api/investors/:slug/portfolio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Row shape returned by investors.js's attachDisplayFields() query.
+const displayRow = {
+  herd_id: "herd-1", rancher_id: "r1", purchase_status: "available",
+  verified_flag: true, last_updated: new Date().toISOString(), cohort_label: null,
+  season: "Fall", breed_code: "AN", dominant_stage: "RANCH", risk_score: 55,
+  listing_price: "10000", pool_id: "pool-1", contract_address: "",
+};
+
+// â”€â”€â”€ GET /api/investors/:slug/portfolio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Security fix 2026-09-21: now requires requireAuth + requireRole(investor,
 // admin), plus a same-slug-or-admin check. Every case below sends an
 // Authorization header for the investor whose own portfolio is being read
 // (or an admin token), matching the :slug in the URL.
+//
+// Numbers fix 2026-09-21: the route now reports real ledger totals (via
+// lib/investorMoney.js) instead of a fabricated position value / 30-day
+// chart. Mock query order below follows the real call sequence: user lookup,
+// then getInvestorMoney's herds/payments/sales/payouts queries, then (when
+// there are held herds) the display-fields query and the recent-events query.
 describe("GET /api/investors/:slug/portfolio", () => {
   beforeEach(() => mockQuery.mockReset());
 
@@ -80,9 +92,13 @@ describe("GET /api/investors/:slug/portfolio", () => {
 
   test("200 returns full portfolio when investor requests their own slug", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ user_id: 7, email: "i@test.com" }] })    // user lookup
-      .mockResolvedValueOnce({ rows: [herdRow] })                                 // herds
-      .mockResolvedValueOnce({ rows: [] });                                       // recent events
+      .mockResolvedValueOnce({ rows: [{ user_id: 7 }] })       // user lookup
+      .mockResolvedValueOnce({ rows: [moneyHerdRow] })          // getInvestorMoney: herds
+      .mockResolvedValueOnce({ rows: [] })                      // getInvestorMoney: payments
+      .mockResolvedValueOnce({ rows: [] })                      // getInvestorMoney: sales
+      .mockResolvedValueOnce({ rows: [] })                      // getInvestorMoney: payouts
+      .mockResolvedValueOnce({ rows: [displayRow] })            // attachDisplayFields
+      .mockResolvedValueOnce({ rows: [] });                     // recent events
 
     const res = await request(app)
       .get("/api/investors/investor1/portfolio")
@@ -92,14 +108,18 @@ describe("GET /api/investors/:slug/portfolio", () => {
       investorSlug: "investor1",
       poolsHeld: 1,
     });
-    expect(res.body.history30d).toHaveLength(31);
+    expect(res.body.totals).toBeDefined();
     expect(res.body.topPools).toHaveLength(1);
   });
 
   test("200 lets an admin view another investor's portfolio", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ user_id: 7, email: "i@test.com" }] })
-      .mockResolvedValueOnce({ rows: [herdRow] })
+      .mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
+      .mockResolvedValueOnce({ rows: [moneyHerdRow] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [displayRow] })
       .mockResolvedValueOnce({ rows: [] });
 
     const res = await request(app)
@@ -111,27 +131,29 @@ describe("GET /api/investors/:slug/portfolio", () => {
 
   test("200 returns empty portfolio when investor holds no herds", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ user_id: 7, email: "i@test.com" }] })  // user
-      .mockResolvedValueOnce({ rows: [] });                                      // no herds (events query skipped)
+      .mockResolvedValueOnce({ rows: [{ user_id: 7 }] })  // user
+      .mockResolvedValueOnce({ rows: [] })                 // getInvestorMoney: herds (none)
+      .mockResolvedValueOnce({ rows: [] });                // getInvestorMoney: payouts (always queried)
 
     const res = await request(app)
       .get("/api/investors/investor1/portfolio")
       .set(auth(investor1Token));
     expect(res.status).toBe(200);
     expect(res.body.poolsHeld).toBe(0);
-    expect(res.body.portfolioValueUsd).toBe(0);
+    expect(res.body.totals.paidIn).toBe(0);
   });
 
-  test("avgRisk is 55 fallback when investor holds no pools", async () => {
+  test("avgRisk is null when investor holds no pools", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ user_id: 7, email: "i@test.com" }] })
-      .mockResolvedValueOnce({ rows: [] }); // no herds â†’ pools.length === 0
+      .mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
+      .mockResolvedValueOnce({ rows: [] }) // no herds â†’ pools.length === 0
+      .mockResolvedValueOnce({ rows: [] }); // payouts
 
     const res = await request(app)
       .get("/api/investors/investor1/portfolio")
       .set(auth(investor1Token));
     expect(res.status).toBe(200);
-    expect(res.body.avgRisk).toBe(55);
+    expect(res.body.avgRisk).toBeNull();
   });
 
   test("500 on DB error", async () => {
@@ -144,7 +166,7 @@ describe("GET /api/investors/:slug/portfolio", () => {
   });
 });
 
-// â”€â”€â”€ GET /api/investors/:slug/holdings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€ GET /api/investors/:slug/holdings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("GET /api/investors/:slug/holdings", () => {
   beforeEach(() => mockQuery.mockReset());
 
@@ -174,17 +196,12 @@ describe("GET /api/investors/:slug/holdings", () => {
 
   test("200 returns held pools for the investor's own slug", async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ user_id: 9 }] })
-      .mockResolvedValueOnce({
-        rows: [{
-          herd_id: "h1", herd_name: "Alpha Herd", listing_price: "8000",
-          purchase_status: "available", head_count: "25", verified_flag: true,
-          last_updated: new Date().toISOString(), cohort_label: null, season: "Spring",
-          breed_code: "HH", dominant_stage: "BACKGROUNDING", risk_score: 40,
-          pool_id: "p1", total_supply: "20", contract_address: "",
-          token_amount: "3",
-        }],
-      });
+      .mockResolvedValueOnce({ rows: [{ user_id: 9 }] })        // user lookup
+      .mockResolvedValueOnce({ rows: [{ ...moneyHerdRow, herd_id: "h1", herd_name: "Alpha Herd", tokens: "3" }] }) // herds
+      .mockResolvedValueOnce({ rows: [] })                       // payments
+      .mockResolvedValueOnce({ rows: [] })                       // sales
+      .mockResolvedValueOnce({ rows: [] })                       // payouts
+      .mockResolvedValueOnce({ rows: [{ ...displayRow, herd_id: "h1" }] }); // attachDisplayFields
 
     const res = await request(app)
       .get("/api/investors/investor2/holdings")
@@ -201,7 +218,8 @@ describe("GET /api/investors/:slug/holdings", () => {
   test("200 lets an admin view another investor's holdings", async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ user_id: 9 }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] }) // no herds
+      .mockResolvedValueOnce({ rows: [] }); // payouts
 
     const res = await request(app)
       .get("/api/investors/investor2/holdings")
@@ -213,7 +231,8 @@ describe("GET /api/investors/:slug/holdings", () => {
   test("200 returns empty array when no holdings", async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ user_id: 9 }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] }) // no herds
+      .mockResolvedValueOnce({ rows: [] }); // payouts
 
     const res = await request(app)
       .get("/api/investors/investor2/holdings")

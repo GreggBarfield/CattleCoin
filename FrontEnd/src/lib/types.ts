@@ -1,4 +1,4 @@
-// ── Supply Chain Stages ──────────────────────────────────────────────────────
+// â”€â”€ Supply Chain Stages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type Stage =
   | "RANCH"
@@ -17,7 +17,7 @@ export const STAGES: Stage[] = [
   "DISTRIBUTION",
 ];
 
-// ── Pool / Herd (ERC-20 concept) ─────────────────────────────────────────────
+// â”€â”€ Pool / Herd (ERC-20 concept) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Combines Herd + TokenPool + Ownership data for investor view
 
 export type PoolType = "herd";
@@ -35,7 +35,7 @@ export type Pool = {
 
   // Herd table fields
   herdId: string;          // Herd.herd_id (uuid)
-  rancherId: string;       // Herd.rancher_id → User.user_id
+  rancherId: string;       // Herd.rancher_id â†’ User.user_id
   listingPrice: number;    // Herd.listing_price (was totalCostUsd)
   purchaseStatus: PurchaseStatus; // Herd.purchase_status
 
@@ -55,10 +55,7 @@ export type Pool = {
   season: "Spring" | "Fall";
 
   // Computed / derived fields
-  positionValueUsd: number;    // sum of CowValuation.total_value for herd
   backingHerdCount: number;    // COUNT of Cow rows with this herd_id
-  expectedRevenueUsd: number;  // projected
-  netExpectedUsd: number;      // positionValueUsd - listingPrice
   stageBreakdown: StageBreakdown[];
   dominantStage: Stage;
   verified: boolean;           // aggregate of CowHealth.verified_flag
@@ -69,9 +66,29 @@ export type Pool = {
   investorAllocation?: number;  // floor(totalSupply * investorPct / 100)
   investorPct?: number | null;  // % set by feedlot
   riskScore?: number | null;
+
+  // Real ledger numbers - no projected value or profit. See
+  // step-dashboard-real-numbers.md (these replaced a listing-price x 1.25 /
+  // x 1.40 formula that had no connection to the real books).
+  totalRaised?: number;   // GET /api/pools[/:id]: money actually raised from ALL investors so far (herd-level, public)
+  costsTotal?: number;    // both routes: money actually spent on this herd so far (active costs only)
+  paidIn?: number;        // GET /api/investors/:slug/holdings|portfolio: THIS investor's own money paid in so far
+  estimatedExtra?: number | null; // this investor's estimated basis for tokens held with no payment on record (older demo data)
+  state?: "open" | "sale_pending" | "sold" | "closed";
+  sale?: { saleId: string; status: string; saleDate: string | null } | null;
+  payout?: {
+    amount: number;
+    capitalReturned: number;
+    profitShare: number | null;
+    exitFee: number;
+    status: "owed" | "paid";
+    paidAt: string | null;
+    paymentReference: string | null;
+    profit: number | null;   // realized profit/loss (amount paid - what this investor put in) - only present once sold and paid out
+  } | null;
 };
 
-// ── Cow (maps to backend Cow table + joined data) ────────────────────────────
+// â”€â”€ Cow (maps to backend Cow table + joined data) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CowHealth = "On Track" | "Watch" | "Issue";
 
@@ -87,7 +104,7 @@ export const SEX_LABELS: Record<SexCode, string> = {
 export type Cow = {
   // Backend Cow table fields
   cowId: string;                    // string of bigint cow_id (used for routing)
-  herdId: string;                   // FK → Herd (was poolId)
+  herdId: string;                   // FK â†’ Herd (was poolId)
   registrationNumber: string;       // Cow.registration_number
   officialId: string;               // Cow.official_id
   animalName: string;               // Cow.animal_name
@@ -109,24 +126,24 @@ export type Cow = {
   verified: boolean;                // CowHealth.verified_flag
 };
 
-// ── CowWeights (backend CowWeights table) ────────────────────────────────────
+// â”€â”€ CowWeights (backend CowWeights table) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type WeightType = "birth" | "weaning" | "yearling" | "sale";
 
 export type CowWeight = {
   weightId: number;          // CowWeights.weight_id (bigint)
-  cowId: string;             // FK → Cow
+  cowId: string;             // FK â†’ Cow
   weightDate: string;        // CowWeights.weight_date (ISO date)
   weightLbs: number;         // CowWeights.weight_lbs
   weightType: WeightType;    // CowWeights.weight_type
   locationCode: string;      // CowWeights.location_code
 };
 
-// ── CowEPDs (backend CowEPDs table — Expected Progeny Differences) ────────────
+// â”€â”€ CowEPDs (backend CowEPDs table â€” Expected Progeny Differences) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CowEPD = {
   cowEpdId: number;          // CowEPDs.cow_epd_id (bigint)
-  cowId: string;             // FK → Cow
+  cowId: string;             // FK â†’ Cow
   traitCode: string;         // CowEPDs.trait_code (WW, YW, CW, MARB, etc.)
   epdValue: number;          // CowEPDs.epd_value
   accuracy: number;          // CowEPDs.accuracy (0-1)
@@ -134,11 +151,11 @@ export type CowEPD = {
   evaluationDate: string;    // CowEPDs.evaluation_date (ISO date)
 };
 
-// ── CowHealthRecord (backend CowHealth table) ─────────────────────────────────
+// â”€â”€ CowHealthRecord (backend CowHealth table) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CowHealthRecord = {
   healthRecordId: number;    // CowHealth.health_record_id (bigint)
-  cowId: string;             // FK → Cow
+  cowId: string;             // FK â†’ Cow
   vaccineName: string;       // CowHealth.vaccine_name
   administrationDate: string;// CowHealth.administration_date (ISO date)
   healthProgramName: string; // CowHealth.health_program_name (NHTC, IMI Global, etc.)
@@ -146,11 +163,11 @@ export type CowHealthRecord = {
   verifiedFlag: boolean;     // CowHealth.verified_flag
 };
 
-// ── CowValuation (backend CowValuation table) ─────────────────────────────────
+// â”€â”€ CowValuation (backend CowValuation table) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CowValuation = {
   valuationId: number;       // CowValuation.valuation_id (bigint)
-  cowId: string;             // FK → Cow
+  cowId: string;             // FK â†’ Cow
   valuationDate: string;     // CowValuation.valuation_date (ISO timestamp)
   geneticsScore: number;     // CowValuation.genetics_score
   healthScore: number;       // CowValuation.health_score
@@ -160,7 +177,7 @@ export type CowValuation = {
   valuationMethodVersion: string; // CowValuation.valuation_method_version
 };
 
-// ── Lifecycle Event ──────────────────────────────────────────────────────────
+// â”€â”€ Lifecycle Event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type LifecycleEvent = {
   id: string;
@@ -172,22 +189,24 @@ export type LifecycleEvent = {
   note: string;
 };
 
-// ── Time Series ──────────────────────────────────────────────────────────────
+// â”€â”€ Time Series â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type SeriesPoint = {
   dateIso: string;
   value: number;
 };
 
-// ── Budget Breakdown ─────────────────────────────────────────────────────────
+// â”€â”€ Cost Breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Real logged costs by category (see step-dashboard-real-numbers.md). Used to
+// be a "Budget Breakdown" with a fabricated cost/revenue split; now it's just
+// the herd's real active costs, same categories as My Money / Herd operations.
 
-export type BudgetItem = {
+export type CostItem = {
   label: string;
   amountUsd: number;
-  category: "cost" | "revenue";
 };
 
-// ── Document ─────────────────────────────────────────────────────────────────
+// â”€â”€ Document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type Document = {
   title: string;
@@ -195,7 +214,7 @@ export type Document = {
   url: string;
 };
 
-// ── Cow Detail (aggregate API response for single cow) ───────────────────────
+// â”€â”€ Cow Detail (aggregate API response for single cow) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CowDetailData = {
   cow: Cow;
@@ -205,30 +224,38 @@ export type CowDetailData = {
   valuations: CowValuation[];
 };
 
-// ── Pool Detail ──────────────────────────────────────────────────────────────
+// â”€â”€ Pool Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type PoolDetail = {
   pool: Pool;
   lifecycle: LifecycleEvent[];
-  budgetBreakdown: BudgetItem[];
-  valuationHistory30d: SeriesPoint[];
+  costBreakdown: CostItem[];
   documents: Document[];
 };
 
-// ── Portfolio Summary ────────────────────────────────────────────────────────
+// â”€â”€ Portfolio Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Real money totals across everything this investor holds or has held - no
+// projected value, no 30-day change, no fabricated chart. See
+// step-dashboard-real-numbers.md.
+
+export type PortfolioTotals = {
+  paidIn: number;
+  estimatedExtra: number;
+  stillInvested: number;
+  receivedFromSales: number;
+  owedFromSales: number;
+};
 
 export type PortfolioSummary = {
   asOfIso: string;
-  portfolioValueUsd: number;
-  change30dPct: number;
+  totals: PortfolioTotals;
   poolsHeld: number;
-  avgRisk: number; // 0-100
-  history30d: SeriesPoint[];
+  avgRisk: number | null; // 0-100, null if none of the held herds have a risk score
   recentEvents: LifecycleEvent[];
   topPools: Pool[];
 };
 
-// ── Invest Types ─────────────────────────────────────────────────────────────
+// â”€â”€ Invest Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type HerdInvestInfo = {
   herdId: string;
@@ -264,11 +291,11 @@ export type InvestResult = {
   newStatus: string;
 };
 
-// ── Feedlot Types ─────────────────────────────────────────────────────────────
+// â”€â”€ Feedlot Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type FeedlotStatus = "pending" | "listed" | "sold";
 
-/** A herd as seen by the feedlot — either pending (available to claim) or already claimed */
+/** A herd as seen by the feedlot â€” either pending (available to claim) or already claimed */
 export type FeedlotHerd = {
   herdId:        string;
   herdName:      string;

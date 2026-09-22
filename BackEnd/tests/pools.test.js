@@ -20,10 +20,10 @@ const herdRow = {
   dominant_stage: "FEEDLOT", risk_score: 55, investor_pct: "60",
   tokens_sold: "5",
   pool_id: "pool-1", total_supply: "20", contract_address: "0xABC",
-  position_value_usd: "12500",
+  total_raised: "6000", total_costs: "1500",
 };
 
-// ─── GET /api/pools ───────────────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("GET /api/pools", () => {
   beforeEach(() => mockQuery.mockReset());
 
@@ -53,7 +53,7 @@ describe("GET /api/pools", () => {
 
   test("purchaseStatus is 'sold' when all investor-allocated tokens gone", async () => {
     const soldRow = { ...herdRow, tokens_sold: "12", investor_pct: "60", total_supply: "20" };
-    // investorAllocation = floor(20 * 60/100) = 12; tokensSold = 12 → sold
+    // investorAllocation = floor(20 * 60/100) = 12; tokensSold = 12 â†’ sold
     mockQuery
       .mockResolvedValueOnce({ rows: [soldRow] })
       .mockResolvedValueOnce({ rows: [] });
@@ -71,7 +71,7 @@ describe("GET /api/pools", () => {
   });
 });
 
-// ─── GET /api/pools/:id ───────────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("GET /api/pools/:id", () => {
   beforeEach(() => mockQuery.mockReset());
 
@@ -93,15 +93,17 @@ describe("GET /api/pools/:id", () => {
           timestamp_iso: new Date().toISOString(),
           note: "BRD Shield administered",
         }],
+      })
+      .mockResolvedValueOnce({                                       // cost breakdown
+        rows: [{ category: "feed", amount: "1500" }],
       });
 
     const res = await request(app).get("/api/pools/herd-1");
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("pool");
     expect(res.body).toHaveProperty("lifecycle");
-    expect(res.body).toHaveProperty("budgetBreakdown");
-    expect(res.body).toHaveProperty("valuationHistory30d");
-    expect(res.body.valuationHistory30d).toHaveLength(31);
+    expect(res.body).toHaveProperty("costBreakdown");
+    expect(res.body.pool).toMatchObject({ totalRaised: 6000, costsTotal: 1500 });
     expect(res.body.lifecycle).toHaveLength(1);
   });
 
@@ -109,7 +111,8 @@ describe("GET /api/pools/:id", () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [herdRow] })
       .mockResolvedValueOnce({ rows: [{ total_tokens: 0 }] })
-      .mockResolvedValueOnce({ rows: [] });  // no events
+      .mockResolvedValueOnce({ rows: [] })   // no events
+      .mockResolvedValueOnce({ rows: [] });  // no costs
 
     const res = await request(app).get("/api/pools/herd-1");
     expect(res.status).toBe(200);
@@ -117,17 +120,24 @@ describe("GET /api/pools/:id", () => {
     expect(res.body.lifecycle[0].id).toMatch(/ev-herd/);
   });
 
-  test("budgetBreakdown has correct categories", async () => {
+  test("costBreakdown maps categories to real labels", async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [herdRow] })
       .mockResolvedValueOnce({ rows: [{ total_tokens: 0 }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          { category: "feed", amount: "1000" },
+          { category: "vet", amount: "500" },
+        ],
+      });
 
     const res = await request(app).get("/api/pools/herd-1");
     expect(res.status).toBe(200);
-    const cats = res.body.budgetBreakdown.map((b) => b.category);
-    expect(cats).toContain("cost");
-    expect(cats).toContain("revenue");
+    expect(res.body.costBreakdown).toEqual([
+      { label: "Feed", amountUsd: 1000 },
+      { label: "Vet and health", amountUsd: 500 },
+    ]);
   });
 
   test("500 on DB error", async () => {
@@ -138,7 +148,7 @@ describe("GET /api/pools/:id", () => {
   });
 });
 
-// ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 describe("GET /api/pools/:id/cows", () => {
   beforeEach(() => mockQuery.mockReset());
 

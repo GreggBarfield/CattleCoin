@@ -3,7 +3,7 @@
 
 // const router = express.Router();
 
-// // ─── helpers ─────────────────────────────────────────────────────────────────
+// // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // function normalisePurchaseStatus(raw) {
 //   if (raw === "available" || raw === "pending" || raw === "sold") return raw;
@@ -60,7 +60,7 @@
 // //   };
 // // }
 
-// // ─── base SELECT — uses LATERAL to avoid the GROUP BY / ORDER BY in aggregate bug
+// // â”€â”€â”€ base SELECT â€” uses LATERAL to avoid the GROUP BY / ORDER BY in aggregate bug
 // // const POOL_QUERY = `
 // //   SELECT
 // //     h.herd_id,
@@ -122,7 +122,7 @@
 //     tokensRemaining,
 //     contractAddress: row.contract_address || "",
 //     tokenAmount,
-//     name: row.herd_name || row.herd_id,          // ← herd_name, never raw UUID
+//     name: row.herd_name || row.herd_id,          // â† herd_name, never raw UUID
 //     poolType: "herd",
 //     cohortLabel: row.cohort_label || null,
 //     geneticsLabel: BREED_LABEL[row.breed_code] ?? row.breed_code ?? "Unknown",
@@ -165,7 +165,7 @@
 // `;
 
 
-// // ─── GET /api/pools ───────────────────────────────────────────────────────────
+// // â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // router.get("/", async (req, res) => {
 //   try {
 //     // Check if ownership records exist
@@ -216,7 +216,7 @@
 //   }
 // });
 
-// // ─── GET /api/pools/:id ───────────────────────────────────────────────────────
+// // â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // router.get("/:id", async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -229,7 +229,7 @@
 
 //     const poolRow = shapePool(herdResult.rows[0]);
 
-//     // ── lifecycle events: recent vaccinations ─────────────────────────────
+//     // â”€â”€ lifecycle events: recent vaccinations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //     const eventsResult = await pool.query(
 //       `SELECT
 //          'ev-' || av.animal_vacc_id::text      AS id,
@@ -271,7 +271,7 @@
 //       }];
 //     }
 
-//     // ── budget breakdown ──────────────────────────────────────────────────
+//     // â”€â”€ budget breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //     const lp = poolRow.listingPrice;
 //     const budgetBreakdown = [
 //       { label: "Cattle Acquisition",   amountUsd: Math.round(lp * 0.36), category: "cost" },
@@ -279,7 +279,7 @@
 //       { label: "Expected Revenue",     amountUsd: Math.round(lp * 1.40), category: "revenue" },
 //     ];
 
-//     // ── 30-day valuation history ──────────────────────────────────────────
+//     // â”€â”€ 30-day valuation history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //     const valuationHistory30d = Array.from({ length: 31 }, (_, i) => {
 //       const d = new Date();
 //       d.setDate(d.getDate() - (30 - i));
@@ -303,7 +303,7 @@
 //   }
 // });
 
-// // ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
+// // â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // router.get("/:id/cows", async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -400,7 +400,7 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function normalisePurchaseStatus(raw) {
   if (raw === "available" || raw === "pending" || raw === "sold") return raw;
@@ -423,11 +423,27 @@ const BREED_LABEL = {
   RA: "Red Angus AI Elite",
 };
 
+// Same labels as FrontEnd/src/lib/money.ts's COST_LABELS - keep in sync.
+const COST_LABELS = {
+  feed: "Feed",
+  yardage: "Yardage",
+  vet: "Vet and health",
+  death_loss_reserve: "Death-loss reserve",
+  lrp_premium: "LRP price-protection premium",
+  purchase: "What the cattle cost to buy",
+  herd_value: "Starting value of the herd",
+  other: "Other",
+};
+
 function shapePool(row, tokenAmount = 0) {
   const stage       = row.dominant_stage || "RANCH";
   const lp          = parseFloat(row.listing_price) || 0;
-  const positionValueUsd  = parseFloat(row.position_value_usd) || lp * 1.25;
-  const expectedRevenueUsd = lp * 1.40;
+  // Real ledger numbers, not a projection: what investors have actually paid
+  // in so far, and what the herd has actually cost so far (see
+  // step-dashboard-real-numbers.md - this used to be listing price x 1.25 /
+  // x 1.40, which had no connection to the real books).
+  const totalRaised = parseFloat(row.total_raised) || 0;
+  const costsTotal  = parseFloat(row.total_costs) || 0;
   const totalSupply = parseInt(row.total_supply, 10) || 20;
   const tokensSold  = parseInt(row.tokens_sold, 10)  || 0;
   const investorPct = row.investor_pct != null ? parseFloat(row.investor_pct) : null;
@@ -462,10 +478,9 @@ function shapePool(row, tokenAmount = 0) {
     cohortLabel: row.cohort_label || null,
     geneticsLabel: BREED_LABEL[row.breed_code] ?? row.breed_code ?? "Unknown",
     season: row.season || "Fall",
-    positionValueUsd,
+    totalRaised,
+    costsTotal,
     backingHerdCount: parseInt(row.head_count, 10) || 0,
-    expectedRevenueUsd,
-    netExpectedUsd: expectedRevenueUsd - lp,
     stageBreakdown: buildStageBreakdown(stage),
     dominantStage: stage,
     verified: Boolean(row.verified_flag),
@@ -487,23 +502,14 @@ SELECT
   h.investor_pct,
   COALESCE(h.tokens_sold, 0) AS tokens_sold,
   tp.pool_id, tp.total_supply, tp.contract_address,
-  COALESCE(
-    (SELECT SUM(latest.fair_value)
-     FROM animals a
-     CROSS JOIN LATERAL (
-       SELECT cv.fair_value FROM cow_valuation cv
-       WHERE cv.cow_id = a.animal_id
-       ORDER BY cv.valuation_date DESC LIMIT 1
-     ) latest
-     WHERE a.herd_id = h.herd_id),
-    h.listing_price * 1.25
-  ) AS position_value_usd
+  COALESCE((SELECT SUM(ip.amount) FROM investor_payments ip WHERE ip.herd_id = h.herd_id), 0) AS total_raised,
+  COALESCE((SELECT SUM(e.amount) FROM herd_expenses e WHERE e.herd_id = h.herd_id AND e.status = 'active'), 0) AS total_costs
 FROM herds h
 LEFT JOIN token_pools tp ON tp.herd_id = h.herd_id
 WHERE h.feedlot_status = 'listed'
 `;
 
-// ─── GET /api/pools ───────────────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns ALL herds so investors can browse the full marketplace.
 // tokenAmount is populated for any herd where an investor-role user owns tokens.
 router.get("/", async (req, res) => {
@@ -532,7 +538,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─── GET /api/pools/:id ───────────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -555,7 +561,7 @@ router.get("/:id", async (req, res) => {
 
     const poolRow = shapePool(herdResult.rows[0], tokenAmount);
 
-    // ── lifecycle events: recent vaccinations ─────────────────────────────
+    // â”€â”€ lifecycle events: recent vaccinations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const eventsResult = await pool.query(
       `SELECT
          'ev-' || av.animal_vacc_id::text      AS id,
@@ -597,25 +603,25 @@ router.get("/:id", async (req, res) => {
       }];
     }
 
-    // ── budget breakdown ──────────────────────────────────────────────────
-    const lp = poolRow.listingPrice;
-    const budgetBreakdown = [
-      { label: "Cattle Acquisition",   amountUsd: Math.round(lp * 0.36), category: "cost" },
-      { label: "Operating Costs",      amountUsd: Math.round(lp * 0.64), category: "cost" },
-      { label: "Expected Revenue",     amountUsd: Math.round(lp * 1.40), category: "revenue" },
-    ];
-
-    // ── 30-day valuation history ──────────────────────────────────────────
-    // TODO: Replace with real per-herd valuation snapshots from cow_valuation table
-    const valuationHistory30d = Array.from({ length: 31 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (30 - i));
-      const variance = 0.97 + (i / 30) * 0.06 + Math.sin(i * 0.5) * 0.01;
-      return {
-        dateIso: d.toISOString(),
-        value: Math.round(poolRow.positionValueUsd * variance),
-      };
-    });
+    // â”€â”€ cost breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Real logged costs by category, not a fabricated percentage of listing
+    // price (see step-dashboard-real-numbers.md). Public/herd-level, same
+    // category labels the My Money / Herd operations screens use, so a
+    // browsing investor sees the real numbers even before they hold shares
+    // (the gated per-viewer cost card on this page, from step 10, only shows
+    // once they hold shares or are the owner/admin).
+    const costRes = await pool.query(
+      `SELECT category, SUM(amount) AS amount
+         FROM herd_expenses
+        WHERE herd_id = $1 AND status = 'active'
+        GROUP BY category
+        ORDER BY SUM(amount) DESC`,
+      [id]
+    );
+    const costBreakdown = costRes.rows.map((r) => ({
+      label: COST_LABELS[r.category] ?? r.category,
+      amountUsd: Math.round(parseFloat(r.amount) || 0),
+    }));
 
     const documents = [
       { title: "Certificate of Origin",     type: "certificate", url: "#" },
@@ -623,14 +629,14 @@ router.get("/:id", async (req, res) => {
       { title: "Ownership Transfer Record", type: "transfer",    url: "#" },
     ];
 
-    res.json({ pool: poolRow, lifecycle, budgetBreakdown, valuationHistory30d, documents });
+    res.json({ pool: poolRow, lifecycle, costBreakdown, documents });
   } catch (err) {
     console.error("GET /api/pools/:id error:", err.message);
     res.status(500).json({ error: "Failed to fetch pool detail", detail: err.message });
   }
 });
 
-// ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
+// â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/:id/cows", async (req, res) => {
   try {
     const { id } = req.params;

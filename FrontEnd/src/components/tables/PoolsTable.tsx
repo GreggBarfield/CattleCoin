@@ -18,8 +18,8 @@ import type { Pool } from "@/lib/types";
 export type PoolSortKey =
   | "name"
   | "backingHerdCount"
-  | "positionValueUsd"
-  | "netExpectedUsd"
+  | "paidIn"
+  | "costsTotal"
   | "lastUpdateIso";
 
 interface PoolsTableProps {
@@ -28,7 +28,7 @@ interface PoolsTableProps {
   sortDir: "asc" | "desc";
   onSort: (key: PoolSortKey) => void;
   compact?: boolean;
-  /** Investor slug — used to build the correct /investor/:slug/holdings/:id URL */
+  /** Investor slug â€” used to build the correct /investor/:slug/holdings/:id URL */
   slug?: string;
 }
 
@@ -52,10 +52,10 @@ export function PoolsTable({
         return dir * a.name.localeCompare(b.name);
       case "backingHerdCount":
         return dir * (a.backingHerdCount - b.backingHerdCount);
-      case "positionValueUsd":
-        return dir * (a.positionValueUsd - b.positionValueUsd);
-      case "netExpectedUsd":
-        return dir * (a.netExpectedUsd - b.netExpectedUsd);
+      case "paidIn":
+        return dir * ((a.paidIn ?? 0) - (b.paidIn ?? 0));
+      case "costsTotal":
+        return dir * ((a.costsTotal ?? 0) - (b.costsTotal ?? 0));
       case "lastUpdateIso":
         return (
           dir *
@@ -99,11 +99,11 @@ export function PoolsTable({
             <SortHeader label="Head Count" field="backingHerdCount" />
           </TableHead>
           <TableHead>
-            <SortHeader label="Position Value" field="positionValueUsd" />
+            <SortHeader label="Paid In" field="paidIn" />
           </TableHead>
           {!compact && (
             <TableHead>
-              <SortHeader label="Net Expected" field="netExpectedUsd" />
+              <SortHeader label="Costs So Far" field="costsTotal" />
             </TableHead>
           )}
           {!compact && <TableHead>Stage</TableHead>}
@@ -140,18 +140,11 @@ export function PoolsTable({
               {p.backingHerdCount} head
             </TableCell>
             <TableCell className="font-medium">
-              {formatUsd(p.positionValueUsd)}
+              {formatUsd(p.paidIn ?? 0)}
             </TableCell>
             {!compact && (
-              <TableCell>
-                <span
-                  className={cn(
-                    "font-medium",
-                    p.netExpectedUsd >= 0 ? "text-green-600" : "text-red-600",
-                  )}
-                >
-                  {formatUsd(p.netExpectedUsd)}
-                </span>
+              <TableCell className="font-medium">
+                {formatUsd(p.costsTotal ?? 0)}
               </TableCell>
             )}
             {!compact && (

@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<PurchaseStatus, string> = {
 interface MyInvestmentsProps {
   pools: Pool[];
   loading?: boolean;
-  /** Investor slug — used to build the correct navigation URL */
+  /** Investor slug â€” used to build the correct navigation URL */
   slug: string;
 }
 
@@ -102,10 +102,10 @@ export function MyInvestments({ pools, loading, slug }: MyInvestmentsProps) {
                 </span>
               </div>
 
-              {/* Position value */}
+              {/* Paid in - real money, not a projected value */}
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Position Value</span>
-                <span className="font-semibold">{formatUsd(pool.positionValueUsd)}</span>
+                <span className="text-muted-foreground">Paid In</span>
+                <span className="font-semibold">{formatUsd(pool.paidIn ?? 0)}</span>
               </div>
 
               {/* Status badge */}

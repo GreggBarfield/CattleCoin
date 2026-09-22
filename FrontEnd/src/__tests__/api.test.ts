@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, afterEach } from "vitest";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function mockFetchOk(body: unknown) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -18,10 +18,9 @@ function mockFetchError(status: number, body: unknown = { error: "Not Found" }) 
   });
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import {
-  getPortfolio,
   getInvestorPortfolio,
   getInvestorHoldings,
   getPools,
@@ -35,28 +34,24 @@ import {
   getFeedlotDashboard,
 } from "@/lib/api";
 
-describe("getPortfolio", () => {
-  afterEach(() => vi.restoreAllMocks());
+describe("getInvestorPortfolio", () => {
+  afterEach(() => vi.unstubAllGlobals());
 
   test("returns parsed JSON on success", async () => {
-    const data = { portfolioValueUsd: 50000 };
+    const data = { investorSlug: "alice", totals: { paidIn: 0 } };
     vi.stubGlobal("fetch", mockFetchOk(data));
-    await expect(getPortfolio()).resolves.toEqual(data);
+    await expect(getInvestorPortfolio("alice")).resolves.toEqual(data);
     vi.unstubAllGlobals();
   });
 
   test("throws on non-ok response", async () => {
     vi.stubGlobal("fetch", mockFetchError(500));
-    await expect(getPortfolio()).rejects.toThrow("500");
+    await expect(getInvestorPortfolio("alice")).rejects.toThrow("500");
     vi.unstubAllGlobals();
   });
-});
-
-describe("getInvestorPortfolio", () => {
-  afterEach(() => vi.unstubAllGlobals());
 
   test("calls correct endpoint for slug", async () => {
-    const data = { investorSlug: "alice", portfolioValueUsd: 0 };
+    const data = { investorSlug: "alice", totals: { paidIn: 0 } };
     const mockFn = mockFetchOk(data);
     vi.stubGlobal("fetch", mockFn);
     await getInvestorPortfolio("alice");

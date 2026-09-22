@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import pool from "./db.js";
 import poolsRoutes from "./routes/pools.js";
 import cowsRoutes from "./routes/cows.js";
-import portfolioRoutes from "./routes/portfolio.js";
 import investorsRoutes from "./routes/investors.js";
 import investRoutes from "./routes/invest.js";
 import feedlotsRoutes from "./routes/feedlots.js";
@@ -31,15 +30,19 @@ const app = express();
 
 app.use(cors());
 
-// Stripe webhooks require the raw body — mount BEFORE express.json()
+// Stripe webhooks require the raw body â€” mount BEFORE express.json()
 app.use("/api/invest/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json());
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use("/api/pools", poolsRoutes);
 app.use("/api/cows", cowsRoutes);
-app.use("/api/portfolio", portfolioRoutes);
+// Note: the old unauthenticated GET /api/portfolio (no :slug) was removed
+// 2026-09-21 - it was dead (no page called it), fabricated its numbers the
+// same way /api/investors/:slug/portfolio used to, and unlike that route had
+// no login check at all, so it leaked every investor's herd data to anyone.
+// See step-dashboard-real-numbers.md.
 app.use("/api/investors", investorsRoutes); // per-investor dashboard + holdings
 app.use("/api/invest",    investRoutes);    // POST buy-tokens form
 app.use("/api/feedlot",  feedlotsRoutes);  // feedlot claim + dashboard
@@ -60,7 +63,7 @@ app.use("/api/marketplace", marketplaceRoutes); // investor: lots open to invest
 app.use("/api/fees", feesRoutes);
 app.use("/api/funds", fundsRoutes);
 
-// ── Health check ──────────────────────────────────────────────────────────────
+// â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/health", async (_req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -70,7 +73,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-// ── 404 fallback ──────────────────────────────────────────────────────────────
+// â”€â”€ 404 fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use((req, res) => {
   res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
 });
