@@ -35,7 +35,7 @@ const STATUS_STYLES: Record<PurchaseStatus, string> = {
 
 function abbreviateAddress(addr: string): string {
   if (!addr || addr === "#" || addr.length <= 14) return addr;
-  return `${addr.slice(0, 8)}â€¦${addr.slice(-6)}`;
+  return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
 }
 
 export function PoolDetail() {
@@ -202,8 +202,8 @@ export function PoolDetail() {
             {/* 4. Risk score */}
             <KpiCard
               label="Risk Score"
-              value={(pool as any).riskScore != null ? String((pool as any).riskScore) : "â€“"}
-              subtitle="0 = low Â· 100 = high"
+              value={(pool as any).riskScore != null ? String((pool as any).riskScore) : "-"}
+              subtitle="0 = low, 100 = high"
               trend="neutral"
             />
           </>
@@ -279,7 +279,7 @@ export function PoolDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Individual Cattle Records ({cowsLoading ? "â€¦" : cows.length} head)
+            Individual Cattle Records ({cowsLoading ? "..." : cows.length} head)
           </CardTitle>
           <Button variant="outline" size="sm" className="gap-1.5">
             <PlusCircle className="h-4 w-4" /> Add Cattle
