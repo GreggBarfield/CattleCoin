@@ -253,6 +253,59 @@ export async function postRancherRegisterCattleBulk(
   return res.json() as Promise<RancherBulkRegisterResult>;
 }
 
+export type RancherOpenToInvestorsResult = {
+  message: string;
+  herd: {
+    herdId: string;
+    herdName: string;
+    headCount: number;
+    feedlotStatus: string;
+    investorPct: number;
+    listingPrice: number;
+  };
+  offering: {
+    totalSupply: number;
+    investorAllocation: number;
+    pricePerToken: number;
+    maxRaise: number;
+  };
+  feeTerms: {
+    raiseFeePct: number;
+    exitProfitFeePct: number;
+    exitFeePayer: string;
+    perHeadFee: number;
+    perHeadFeeTiming: string;
+  } | null;
+  startingValue?: { booked: boolean; amount?: number };
+  warnings?: string[];
+};
+
+// Lists a herd on the investor marketplace (feedlot_status 'listed'). This is
+// the route investors' queries look for - the older /publish route does not
+// list the herd and also tries an on-chain token deploy.
+export async function postRancherOpenToInvestors(
+  herdId: string,
+  investorPct: number,
+  listingPrice?: number
+): Promise<RancherOpenToInvestorsResult> {
+  const res = await fetch(`${API_BASE}/herds/${herdId}/open-to-investors`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(
+      listingPrice === undefined ? { investorPct } : { investorPct, listingPrice }
+    ),
+  });
+
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, `Failed to open herd to investors (${res.status}).`));
+  }
+
+  return res.json() as Promise<RancherOpenToInvestorsResult>;
+}
+
 export async function postRancherPublishHerd(
   herdId: string,
   listingPrice?: number

@@ -18,12 +18,13 @@ import type { SexCode } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
 import {
   postRancherCreateHerd,
-  postRancherPublishHerd,
+  postRancherOpenToInvestors,
   postRancherRegisterCattleBulk,
   type RancherBulkCowPayload,
+  type RancherOpenToInvestorsResult,
 } from "@/lib/api";
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Types --
 
 type Season = "Spring" | "Fall";
 
@@ -56,14 +57,14 @@ interface QueuedCow extends CowFormData {
   _queueId: string;
 }
 
-// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Constants --
 
 const SEASON_OPTIONS: { value: Season; label: string }[] = [
   { value: "Spring", label: "Spring" },
   { value: "Fall", label: "Fall" },
 ];
 
-const STEP_LABELS = ["Create Herd", "Upload Cattle", "Review & Publish"];
+const STEP_LABELS = ["Create Herd", "Upload Cattle", "Review & Open to Investors"];
 
 const EMPTY_HERD: HerdFormData = {
   name: "",
@@ -77,7 +78,36 @@ const EMPTY_HERD: HerdFormData = {
   sale_location: "",
 };
 
-// â”€â”€ StepIndicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Mirrors the backend's open-to-investors math (BackEnd/src/routes/offering.js):
+// shares = head count, investor shares = floor(shares * pct / 100),
+// price per share = listing price / shares.
+function offeringPreview(listingPrice: number, headCount: number, pct: number) {
+  if (!(listingPrice > 0) || !(headCount > 0) || !(pct > 0) || pct > 100) return null;
+  const allocation = Math.floor((headCount * pct) / 100);
+  const pricePerShare = listingPrice / headCount;
+  return {
+    totalShares: headCount,
+    allocation,
+    pricePerShare,
+    maxRaise: allocation * pricePerShare,
+  };
+}
+
+function formatUsd(n: number) {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+// Returns an error message, or null if the percentage is OK.
+function checkInvestorPct(raw: string): string | null {
+  if (raw.trim() === "") return "Enter the percent of the herd to offer to investors.";
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return "Investor percent must be a number.";
+  if (n <= 0 || n > 100) return "Investor percent must be more than 0 and at most 100.";
+  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-7) return "Investor percent can have at most 2 decimal places.";
+  return null;
+}
+
+// -- StepIndicator --
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -125,7 +155,7 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-// â”€â”€ PillGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- PillGroup --
 
 function PillGroup<T extends string>({
   options,
@@ -161,7 +191,7 @@ function PillGroup<T extends string>({
   );
 }
 
-// â”€â”€ Field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Field wrapper --
 
 function Field({
   label,
@@ -186,7 +216,7 @@ function Field({
   );
 }
 
-// â”€â”€ CSV row â†’ QueuedCow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- CSV row -> QueuedCow --
 
 function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
   const rawSuffix = String(row.official_id_suffix ?? row.official_id ?? "").replace(/\D/g, "").slice(0, 12);
@@ -210,7 +240,7 @@ function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
   };
 }
 
-// â”€â”€ Rancher (main page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Rancher (main page) --
 
 export function Rancher() {
   const { currentUser } = useAuth();
@@ -233,12 +263,15 @@ export function Rancher() {
   const [isCreatingHerd, setIsCreatingHerd] = React.useState(false);
   const [isRegisteringCattle, setIsRegisteringCattle] = React.useState(false);
   const [isPublishing, setIsPublishing] = React.useState(false);
+  const [investorPct, setInvestorPct] = React.useState("");
+  const [openError, setOpenError] = React.useState<string | null>(null);
+  const [openResult, setOpenResult] = React.useState<RancherOpenToInvestorsResult | null>(null);
   const [cattleRegistered, setCattleRegistered] = React.useState(false);
 
   const rancherId = currentUser?.userId ?? null;
   const cattleLocked = cattleRegistered || isRegisteringCattle;
 
-  // â”€â”€ Step 1 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Step 1 handlers --
 
   function setHerdField<K extends keyof HerdFormData>(key: K, val: HerdFormData[K]) {
     setHerd((h) => ({ ...h, [key]: val }));
@@ -298,7 +331,7 @@ export function Rancher() {
     }
   }
 
-  // â”€â”€ Step 2 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Step 2 handlers --
 
   async function handleCsvChunk(rows: Record<string, string | undefined>[]) {
     pendingRowsRef.current.push(...rows.map(rowToQueuedCow));
@@ -368,30 +401,40 @@ export function Rancher() {
     }
   }
 
-  // â”€â”€ Step 3 handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Step 3 handlers --
 
   async function handlePublish() {
-    if (cowQueue.length === 0) return;
-    setCattleError(null);
+    setOpenError(null);
+    if (cowQueue.length === 0) {
+      setOpenError("Upload at least one cow before opening this lot to investors.");
+      return;
+    }
     if (!createdHerdId) {
-      setCattleError("Missing herd id for publish.");
+      setOpenError("Missing herd id - go back to step 1 and create the herd again.");
       return;
     }
     if (!rancherId) {
-      setCattleError("Missing logged-in rancher session.");
+      setOpenError("Missing logged-in rancher session. Sign out and back in, then try again.");
+      return;
+    }
+    const pctProblem = checkInvestorPct(investorPct);
+    if (pctProblem) {
+      setOpenError(pctProblem);
       return;
     }
 
     try {
       setIsPublishing(true);
       const listingPrice = Number.parseFloat(herdSnapshot?.listing_price ?? herd.listing_price);
-      await postRancherPublishHerd(
+      const result = await postRancherOpenToInvestors(
         createdHerdId,
+        Number(investorPct),
         Number.isFinite(listingPrice) ? listingPrice : undefined
       );
+      setOpenResult(result);
       setPublished(true);
     } catch (err: unknown) {
-      setCattleError(err instanceof Error ? err.message : "Failed to publish lot.");
+      setOpenError(err instanceof Error ? err.message : "Failed to open this lot to investors.");
     } finally {
       setIsPublishing(false);
     }
@@ -408,25 +451,63 @@ export function Rancher() {
     setIsRegisteringCattle(false);
     setIsPublishing(false);
     setCattleRegistered(false);
+    setInvestorPct("");
+    setOpenError(null);
+    setOpenResult(null);
     setHerdError(null);
     setUploadError(null);
     setCattleError(null);
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Render --
 
   if (published) {
+    const o = openResult?.offering;
+    const fees = openResult?.feeTerms;
     return (
       <div className="mx-auto max-w-2xl p-6">
         <div className="rounded-lg border border-border bg-card p-10 text-center">
           <CheckCircle className="mx-auto h-12 w-12 text-primary" />
-          <h2 className="mt-4 text-xl font-bold">Lot Published!</h2>
+          <h2 className="mt-4 text-xl font-bold">Lot Open to Investors!</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
-              {herdSnapshot?.name}
+              {openResult?.herd.herdName ?? herdSnapshot?.name}
             </span>{" "}
-            is now visible to investors.
+            is now listed on the investor marketplace.
           </p>
+          {o && (
+            <dl className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-x-6 gap-y-3 text-left text-sm">
+              <dt className="text-muted-foreground">Offered to investors</dt>
+              <dd className="font-medium">{openResult?.herd.investorPct}%</dd>
+              <dt className="text-muted-foreground">Shares offered</dt>
+              <dd className="font-medium">
+                {o.investorAllocation} of {o.totalSupply}
+              </dd>
+              <dt className="text-muted-foreground">Price per share</dt>
+              <dd className="font-medium">{formatUsd(o.pricePerToken)}</dd>
+              <dt className="text-muted-foreground">Most you can raise</dt>
+              <dd className="font-medium">{formatUsd(o.maxRaise)}</dd>
+              {openResult?.startingValue?.booked && openResult.startingValue.amount != null && (
+                <>
+                  <dt className="text-muted-foreground">Starting value booked</dt>
+                  <dd className="font-medium">{formatUsd(openResult.startingValue.amount)}</dd>
+                </>
+              )}
+              {fees && (
+                <>
+                  <dt className="text-muted-foreground">Platform raise fee</dt>
+                  <dd className="font-medium">{fees.raiseFeePct}%</dd>
+                </>
+              )}
+            </dl>
+          )}
+          {openResult?.warnings && openResult.warnings.length > 0 && (
+            <div className="mx-auto mt-4 max-w-md space-y-1 text-left text-xs text-muted-foreground">
+              {openResult.warnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          )}
           <Button className="mt-6" variant="outline" onClick={handleReset}>
             Post Another Lot
           </Button>
@@ -441,7 +522,7 @@ export function Rancher() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Post a Lot</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create a herd listing, upload cattle via CSV, then publish for investors.
+          Create a herd listing, upload cattle via CSV, then open it to investors.
         </p>
       </div>
 
@@ -450,7 +531,7 @@ export function Rancher() {
 
       <Separator />
 
-      {/* â”€â”€ Step 1: Create Herd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* -- Step 1: Create Herd -- */}
       {step === 1 && (
         <Card>
           <CardHeader>
@@ -463,7 +544,7 @@ export function Rancher() {
             <form onSubmit={handleCreateHerd} className="space-y-4">
               <Field label="Lot Name" required>
                 <Input
-                  placeholder="e.g. Spring Angus â€” 2026"
+                  placeholder="e.g. Spring Angus - 2026"
                   value={herd.name}
                   disabled={isCreatingHerd}
                   onChange={(e) => setHerdField("name", e.target.value)}
@@ -473,7 +554,7 @@ export function Rancher() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Genetics Label" required>
                   <Input
-                    placeholder="e.g. Angus Ã— Hereford"
+                    placeholder="e.g. Angus x Hereford"
                     value={herd.genetics_label}
                     disabled={isCreatingHerd}
                     onChange={(e) => setHerdField("genetics_label", e.target.value)}
@@ -579,7 +660,7 @@ export function Rancher() {
         </Card>
       )}
 
-      {/* â”€â”€ Step 2: Upload Cattle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* -- Step 2: Upload Cattle -- */}
       {step === 2 && (
         <div className="space-y-4">
           <Card>
@@ -630,7 +711,7 @@ export function Rancher() {
           {cowQueue.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">
-                Imported â€” {cowQueue.length}{" "}
+                Imported - {cowQueue.length}{" "}
                 {cowQueue.length === 1 ? "cow" : "cows"}
               </p>
               {cowQueue.map((c) => (
@@ -686,7 +767,7 @@ export function Rancher() {
           )}
           {cattleRegistered && (
             <p className="text-sm text-muted-foreground">
-              Cattle registered successfully. Continue to review and publish.
+              Cattle registered successfully. Continue to review and open to investors.
             </p>
           )}
 
@@ -709,7 +790,7 @@ export function Rancher() {
         </div>
       )}
 
-      {/* â”€â”€ Step 3: Review & Publish â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* -- Step 3: Review & Open to Investors -- */}
       {step === 3 && herdSnapshot && (
         <div className="space-y-4">
           {/* Herd summary */}
@@ -789,12 +870,67 @@ export function Rancher() {
             </CardContent>
           </Card>
 
+          {/* Offer to investors */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Offer to Investors</CardTitle>
+              <CardDescription>
+                Choose how much of this herd to offer. Each head is one share. Your
+                listing price is booked as the herd&apos;s starting value - investors get
+                their money back first and share only the gain above it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Field label="Percent offered to investors" required>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="e.g. 50"
+                  value={investorPct}
+                  disabled={isPublishing}
+                  onChange={(e) => setInvestorPct(e.target.value)}
+                />
+              </Field>
+              {(() => {
+                const preview = checkInvestorPct(investorPct)
+                  ? null
+                  : offeringPreview(
+                      Number.parseFloat(herdSnapshot.listing_price),
+                      Number.parseInt(herdSnapshot.head_count, 10),
+                      Number(investorPct)
+                    );
+                if (!preview) return null;
+                return (
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-md border border-border bg-muted/40 p-4 text-sm">
+                    <dt className="text-muted-foreground">Shares offered</dt>
+                    <dd className="font-medium">
+                      {preview.allocation} of {preview.totalShares}
+                    </dd>
+                    <dt className="text-muted-foreground">Price per share</dt>
+                    <dd className="font-medium">{formatUsd(preview.pricePerShare)}</dd>
+                    <dt className="text-muted-foreground">Most you can raise</dt>
+                    <dd className="font-medium">{formatUsd(preview.maxRaise)}</dd>
+                  </dl>
+                );
+              })()}
+              <p className="text-xs text-muted-foreground">
+                Platform fees are set by CattleCoin and shown once the lot is open.
+              </p>
+            </CardContent>
+          </Card>
+
+          {openError && (
+            <p className="text-sm text-destructive" role="alert">
+              {openError}
+            </p>
+          )}
+
           <div className="flex justify-between pt-2">
             <Button variant="outline" onClick={() => setStep(2)} disabled={isPublishing}>
               Back
             </Button>
             <Button onClick={handlePublish} disabled={cowQueue.length === 0 || isPublishing}>
-              {isPublishing ? "Publishing Lot..." : "Publish Lot"}
+              {isPublishing ? "Opening to Investors..." : "Open to Investors"}
             </Button>
           </div>
         </div>
