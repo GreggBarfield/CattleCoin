@@ -5,6 +5,8 @@ import { Holdings } from "@/pages/Holdings";
 import { PoolDetail } from "@/pages/PoolDetail";
 import { CowDetail } from "@/pages/CowDetail";
 import { Rancher } from "@/pages/Rancher";
+import { StageUpdate } from "@/pages/StageUpdate";
+import { CarcassEntry } from "@/pages/CarcassEntry";
 import { Login } from "@/pages/Login";
 import { SignUp } from "@/pages/SignUp";
 import { Admin } from "@/pages/Admin";
@@ -91,11 +93,19 @@ function AppRoutes() {
           path="/rancher"
           element={<Protected role="rancher"><Rancher /></Protected>}
         />
+        <Route
+          path="/rancher/stages"
+          element={<Protected role="rancher"><StageUpdate /></Protected>}
+        />
 
         {/* Feedlot portal */}
         <Route
           path="/feedlot"
           element={<Protected role="feedlot"><FeedlotPage /></Protected>}
+        />
+        <Route
+          path="/feedlot/carcass"
+          element={<Protected role="feedlot"><CarcassEntry /></Protected>}
         />
 
         {/* Admin portal */}

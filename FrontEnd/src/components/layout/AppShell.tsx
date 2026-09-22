@@ -8,6 +8,8 @@ import {
   LogOut,
   CircleHelp,
   Wallet,
+  Milestone,
+  ClipboardList,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -60,10 +62,16 @@ export function AppShell() {
         ]
       : []),
     ...(currentUser?.role === "rancher"
-      ? [{ to: "/rancher", label: "My Herds", icon: User, end: false }]
+      ? [
+          { to: "/rancher", label: "My Herds", icon: User, end: true },
+          { to: "/rancher/stages", label: "Herd Stages", icon: Milestone, end: false },
+        ]
       : []),
     ...(currentUser?.role === "feedlot"
-      ? [{ to: "/feedlot", label: "Feedlot", icon: Tractor, end: false }]
+      ? [
+          { to: "/feedlot", label: "Feedlot", icon: Tractor, end: true },
+          { to: "/feedlot/carcass", label: "Carcass Records", icon: ClipboardList, end: false },
+        ]
       : []),
     ...(currentUser?.role === "admin"
       ? [{ to: "/admin", label: "Admin", icon: Settings, end: false }]
