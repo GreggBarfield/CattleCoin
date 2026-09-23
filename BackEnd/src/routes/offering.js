@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { HttpError, isUuid, toCents, dollars, money, withTransaction, sendError } from "../lib/routeHelpers.js";
 import { prepareHerdForInvestors } from "../lib/offering.js";
 import { voidHerdValueCost } from "../lib/costs.js";
+import { STAGES } from "../lib/stages.js";
 
 const router = express.Router();
 
@@ -31,6 +32,17 @@ const router = express.Router();
 
 const OPEN_ROLES = ["feedlot", "rancher"];
 const MAX_PRICE_DOLLARS = 9999999999;
+
+// C3 (punch list): once a herd is past the feedlot stage it's headed to a
+// processor, not the investor marketplace - stop it from being opened past
+// that point, matching the sale requirement now enforced on stage moves
+// (lib/stages.js).
+const FEEDLOT_IDX = STAGES.indexOf("FEEDLOT");
+
+function titleCaseStage(stage) {
+  if (!stage) return stage;
+  return stage.charAt(0) + stage.slice(1).toLowerCase();
+}
 
 function parsePct(value) {
   const n = Number(value);
@@ -65,7 +77,7 @@ router.post("/:herdId/open-to-investors", requireAuth, requireRole(...OPEN_ROLES
 
     const out = await withTransaction(async (client) => {
       const herdRes = await client.query(
-        `SELECT herd_id, rancher_id, herd_name, head_count, listing_price, feedlot_status
+        `SELECT herd_id, rancher_id, herd_name, head_count, listing_price, feedlot_status, dominant_stage
            FROM herds WHERE herd_id = $1 FOR UPDATE`,
         [herdId]
       );
@@ -77,6 +89,13 @@ router.post("/:herdId/open-to-investors", requireAuth, requireRole(...OPEN_ROLES
       }
       if (herd.feedlot_status === "sold") {
         throw new HttpError(409, "This herd is sold or has a sale in progress.");
+      }
+      const stageIdx = STAGES.indexOf(herd.dominant_stage || "RANCH");
+      if (stageIdx > FEEDLOT_IDX) {
+        throw new HttpError(
+          409,
+          `This herd is already at the ${titleCaseStage(herd.dominant_stage)} stage, so it can no longer be opened to investors.`
+        );
       }
 
       if (priceCents === null && herd.listing_price != null) priceCents = toCents(herd.listing_price);

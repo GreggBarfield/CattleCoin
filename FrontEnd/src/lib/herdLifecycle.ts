@@ -57,6 +57,10 @@ export type OwnedHerd = {
   purchase_status: string;
   feedlot_status: string | null;
   cattle_count: number;
+  // C4: not requested from the server specially - GET /api/herds already
+  // returns this, it just wasn't in this type yet - used to tell apart two
+  // herds with the same name in the Herd Stages dropdown.
+  created_at?: string;
 };
 
 export const getHerdsByOwner = (rancherId: string) =>

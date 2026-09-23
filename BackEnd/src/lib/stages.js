@@ -23,9 +23,21 @@ export function shapeStageEntry(r) {
   };
 }
 
+// Stages that need a real-world sale (pending or approved) behind them before
+// an owner can move a herd there - cattle don't go to a processor without
+// being sold. `hasSale` is whichever of pending_approval/approved the herd
+// currently has (see lib/costs.js herdSaleState); an admin correction skips
+// this, same as it skips the sequential-move check below.
+const REQUIRES_SALE = new Set(["PROCESSING", "DISTRIBUTION"]);
+
+function titleCase(stage) {
+  if (!stage) return stage;
+  return stage.charAt(0) + stage.slice(1).toLowerCase();
+}
+
 // Can this person move the herd from `from` to `to` right now?
 // Returns { ok, status, message, isCorrection }.
-export function stageChangeRule({ isAdmin, isOwner, from, to }) {
+export function stageChangeRule({ isAdmin, isOwner, from, to, hasSale = false }) {
   const no = (status, message) => ({ ok: false, status, message });
   if (!STAGES.includes(to)) return no(400, `stage must be one of: ${STAGES.join(", ")}.`);
   if (to === from) return no(409, `This herd is already at ${to}.`);
@@ -41,6 +53,9 @@ export function stageChangeRule({ isAdmin, isOwner, from, to }) {
         ? `The next stage from ${from} is ${next}. Ask an admin for anything else.`
         : `This herd is already at the last stage (${from}). Ask an admin for anything else.`
     );
+  }
+  if (REQUIRES_SALE.has(to) && !hasSale) {
+    return no(409, `${titleCase(to)} requires this herd to have a sale first (pending or approved). Submit a sale, then move the stage.`);
   }
   return { ok: true, isCorrection: false };
 }

@@ -43,10 +43,10 @@ router.post("/:herdId/stage", requireAuth, async (req, res) => {
       const isAdmin = req.user.role === "admin";
       const isOwner = herd.rancher_id === req.user.userId && OWNER_ROLES.includes(req.user.role);
       const fromStage = herd.dominant_stage || "RANCH";
-      const rule = stageChangeRule({ isAdmin, isOwner, from: fromStage, to: toStage });
+      const saleState = await herdSaleState(client, herdId);
+      const rule = stageChangeRule({ isAdmin, isOwner, from: fromStage, to: toStage, hasSale: saleState !== null });
       if (!rule.ok) throw new HttpError(rule.status, rule.message);
 
-      const saleState = await herdSaleState(client, herdId);
       if (saleState === "approved") {
         throw new HttpError(409, "This herd's sale has been approved, so its stage is frozen.");
       }
