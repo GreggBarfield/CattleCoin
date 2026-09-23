@@ -1,8 +1,9 @@
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CheckCircle, X, ChevronRight } from "lucide-react";
+import { CheckCircle, X, ChevronRight, Download } from "lucide-react";
 import { Importer, ImporterField } from "react-csv-importer";
 import "react-csv-importer/dist/index.css";
+import "@/styles/csv-importer-overrides.css";
 import {
   Card,
   CardHeader,
@@ -25,6 +26,7 @@ import {
   type RancherOpenToInvestorsResult,
 } from "@/lib/api";
 import { getHerdDetail } from "@/lib/rancherHerds";
+import { headCountMismatchWarning, missingHerdFields } from "@/lib/rancherWizardValidation";
 
 // -- Types --
 
@@ -37,9 +39,6 @@ interface HerdFormData {
   season: Season | "";
   listing_price: string;
   head_count: string;
-  birth_date: string;    // first birthday of the group
-  sale_date: string;     // expected sale date
-  sale_location: string; // zipcode or location
 }
 
 interface CowFormData {
@@ -75,10 +74,37 @@ const EMPTY_HERD: HerdFormData = {
   season: "",
   listing_price: "",
   head_count: "",
-  birth_date: "",
-  sale_date: "",
-  sale_location: "",
 };
+
+// CSV template headers, in the same order as the ImporterField list below.
+// These are the exact header strings react-csv-importer auto-maps against
+// (it matches on each field's label, not its snake_case name - see B7), so
+// the downloadable template (B8) and the on-page instructions both use them.
+const CSV_TEMPLATE_HEADERS = [
+  "Registration Number",
+  "Official ID Suffix (12-digit EID)",
+  "Breed Code",
+  "Sex Code (B/C/H/S)",
+  "Birth Date (YYYY-MM-DD)",
+  "Weight (lbs)",
+  "Animal Name",
+  "Sire Registration #",
+  "Dam Registration #",
+  "Genomic Enhanced (true/false)",
+];
+
+function downloadCsvTemplate() {
+  const csv = CSV_TEMPLATE_HEADERS.map((h) => `"${h.replace(/"/g, '""')}"`).join(",") + "\n";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cattlecoin-cattle-import-template.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // Mirrors the backend's open-to-investors math (BackEnd/src/routes/offering.js):
 // shares = head count, investor shares = floor(shares * pct / 100),
@@ -218,6 +244,90 @@ function Field({
   );
 }
 
+// -- Cattle row cards --
+//
+// Memoized (B11): with 20+ cows queued, unrelated state changes elsewhere on
+// the page (e.g. typing in another field) used to re-render every row's JSX
+// on every keystroke. These only re-render when their own props change.
+
+const CowBadges = React.memo(function CowBadges({ c }: { c: QueuedCow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm font-semibold">
+        {c.animal_name || c.registration_number}
+      </span>
+      {c.sex_code && (
+        <Badge variant="outline" className="text-xs">
+          {c.sex_code}
+        </Badge>
+      )}
+      {c.breed_code && (
+        <Badge variant="outline" className="text-xs">
+          {c.breed_code}
+        </Badge>
+      )}
+      {c.is_genomic_enhanced && (
+        <Badge variant="secondary" className="text-xs">
+          GE
+        </Badge>
+      )}
+    </div>
+  );
+});
+
+const CowDetailLine = React.memo(function CowDetailLine({
+  c,
+  className,
+}: {
+  c: QueuedCow;
+  className: string;
+}) {
+  return (
+    <p className={className}>
+      Reg: {c.registration_number}
+      {c.official_id_suffix && <> &bull; EID: 840{c.official_id_suffix}</>}
+      {c.weight_lbs && <> &bull; {c.weight_lbs} lbs</>}
+    </p>
+  );
+});
+
+const CattleQueueRow = React.memo(function CattleQueueRow({
+  c,
+  removable,
+  onRemove,
+}: {
+  c: QueuedCow;
+  removable: boolean;
+  onRemove: (queueId: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <CowBadges c={c} />
+        <CowDetailLine c={c} className="truncate text-xs text-muted-foreground" />
+      </div>
+      <button
+        type="button"
+        disabled={!removable}
+        onClick={() => onRemove(c._queueId)}
+        className="ml-4 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        aria-label="Remove cow"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+});
+
+const CattleReviewRow = React.memo(function CattleReviewRow({ c }: { c: QueuedCow }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/40 px-4 py-3">
+      <CowBadges c={c} />
+      <CowDetailLine c={c} className="mt-0.5 text-xs text-muted-foreground" />
+    </div>
+  );
+});
+
 // -- CSV row -> QueuedCow --
 
 function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
@@ -315,10 +425,6 @@ export function Rancher() {
           season: d.season === "Spring" || d.season === "Fall" ? d.season : "",
           listing_price: d.listing_price != null ? String(d.listing_price) : "",
           head_count: d.head_count != null ? String(d.head_count) : "",
-          // Never saved by the backend (see punch list B1) - not recoverable.
-          birth_date: "",
-          sale_date: "",
-          sale_location: "",
         };
         setHerd(resumed);
         setHerdSnapshot(resumed);
@@ -335,6 +441,9 @@ export function Rancher() {
 
   function setHerdField<K extends keyof HerdFormData>(key: K, val: HerdFormData[K]) {
     setHerd((h) => ({ ...h, [key]: val }));
+    // B6/B12: clear a stale error as soon as the rancher starts fixing it,
+    // instead of leaving the old message on screen.
+    setHerdError(null);
   }
 
   async function handleCreateHerd(e: React.FormEvent) {
@@ -353,18 +462,9 @@ export function Rancher() {
       return;
     }
 
-    if (
-      !herd.name.trim() ||
-      !herd.genetics_label.trim() ||
-      !herd.breed_code.trim() ||
-      !herd.season ||
-      !herd.listing_price ||
-      !herd.head_count ||
-      !herd.birth_date ||
-      !herd.sale_date ||
-      !herd.sale_location.trim()
-    ) {
-      setHerdError("All fields are required.");
+    const missing = missingHerdFields(herd);
+    if (missing.length > 0) {
+      setHerdError(`Missing: ${missing.join(", ")}.`);
       return;
     }
 
@@ -382,7 +482,8 @@ export function Rancher() {
         name: herd.name.trim(),
         genetics_label: herd.genetics_label.trim(),
         breed_code: herd.breed_code.trim().toUpperCase(),
-        season: herd.season,
+        // missingHerdFields already confirmed herd.season is non-empty above.
+        season: herd.season as Season,
         listing_price: listingPrice,
         head_count: headCount,
         purchase_status: "pending",
@@ -695,54 +796,11 @@ export function Rancher() {
                 <Field label="Head Count" required hint="Minimum 20 head per lot">
                   <Input
                     type="number"
-                    min="20"
                     step="1"
                     placeholder="e.g. 50"
                     value={herd.head_count}
                     disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("head_count", e.target.value)}
-                  />
-                </Field>
-              </div>
-
-              <Separator />
-
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Group Info
-              </p>
-
-              <Field
-                label="Group Birth Date"
-                required
-                hint="First birthday of the group"
-              >
-                <Input
-                  type="date"
-                  value={herd.birth_date}
-                  disabled={isCreatingHerd || herdLocked}
-                  onChange={(e) => setHerdField("birth_date", e.target.value)}
-                />
-              </Field>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Expected Sale Date" required>
-                  <Input
-                    type="date"
-                    value={herd.sale_date}
-                    disabled={isCreatingHerd || herdLocked}
-                    onChange={(e) => setHerdField("sale_date", e.target.value)}
-                  />
-                </Field>
-                <Field
-                  label="Sale Location"
-                  required
-                  hint="Zipcode or city/state"
-                >
-                  <Input
-                    placeholder="e.g. 77840 or College Station, TX"
-                    value={herd.sale_location}
-                    disabled={isCreatingHerd || herdLocked}
-                    onChange={(e) => setHerdField("sale_location", e.target.value)}
                   />
                 </Field>
               </div>
@@ -769,21 +827,26 @@ export function Rancher() {
             <CardHeader>
               <CardTitle>Upload Cattle</CardTitle>
               <CardDescription>
-                Import individual cow records from a CSV file. Your spreadsheet
-                should include columns:{" "}
-                <span className="font-mono text-xs">
-                  registration_number, official_id_suffix, breed_code, sex_code
-                  (B/C/H/S), birth_date (YYYY-MM-DD), weight_lbs
-                </span>
-                . Optional:{" "}
-                <span className="font-mono text-xs">
-                  animal_name, sire_registration_number,
-                  dam_registration_number, is_genomic_enhanced
-                </span>
-                .
+                Import individual cow records from a CSV file. Use these exact
+                column headers so they line up automatically - Registration
+                Number, Official ID Suffix (12-digit EID), Breed Code, Sex
+                Code (B/C/H/S), Birth Date (YYYY-MM-DD), Weight (lbs).
+                Optional: Animal Name, Sire Registration #, Dam Registration
+                #, Genomic Enhanced (true/false). Any other headers can still
+                be mapped by hand on the next screen.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={downloadCsvTemplate}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                Download CSV template
+              </Button>
+
               {/* CSV Importer */}
               <Importer
                 dataHandler={handleCsvChunk}
@@ -816,50 +879,25 @@ export function Rancher() {
                 Imported - {cowQueue.length}{" "}
                 {cowQueue.length === 1 ? "cow" : "cows"}
               </p>
+              {(() => {
+                const headCount = Number.parseInt(
+                  herdSnapshot?.head_count ?? herd.head_count,
+                  10
+                );
+                const warning = headCountMismatchWarning(cowQueue.length, headCount);
+                return warning ? (
+                  <p className="text-sm text-amber-700" role="alert">
+                    {warning}
+                  </p>
+                ) : null;
+              })()}
               {cowQueue.map((c) => (
-                <div
+                <CattleQueueRow
                   key={c._queueId}
-                  className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
-                >
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold">
-                        {c.animal_name || c.registration_number}
-                      </span>
-                      {c.sex_code && (
-                        <Badge variant="outline" className="text-xs">
-                          {c.sex_code}
-                        </Badge>
-                      )}
-                      {c.breed_code && (
-                        <Badge variant="outline" className="text-xs">
-                          {c.breed_code}
-                        </Badge>
-                      )}
-                      {c.is_genomic_enhanced && (
-                        <Badge variant="secondary" className="text-xs">
-                          GE
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      Reg: {c.registration_number}
-                      {c.official_id_suffix && (
-                        <> &bull; EID: 840{c.official_id_suffix}</>
-                      )}
-                      {c.weight_lbs && <> &bull; {c.weight_lbs} lbs</>}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={cattleLocked}
-                    onClick={() => handleRemoveCow(c._queueId)}
-                    className="ml-4 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    aria-label="Remove cow"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
+                  c={c}
+                  removable={!cattleLocked}
+                  onRemove={handleRemoveCow}
+                />
               ))}
             </div>
           )}
@@ -913,9 +951,6 @@ export function Rancher() {
                       value: `$${parseFloat(herdSnapshot.listing_price).toLocaleString()}`,
                     },
                     { label: "Head Count", value: herdSnapshot.head_count },
-                    { label: "Group Birth Date", value: herdSnapshot.birth_date },
-                    { label: "Expected Sale Date", value: herdSnapshot.sale_date },
-                    { label: "Sale Location", value: herdSnapshot.sale_location },
                   ] as { label: string; value: string }[]
                 ).map(({ label, value }) => (
                   <div key={label}>
@@ -936,38 +971,7 @@ export function Rancher() {
             </CardHeader>
             <CardContent className="space-y-2 pt-0">
               {cowQueue.map((c) => (
-                <div
-                  key={c._queueId}
-                  className="rounded-md border border-border bg-muted/40 px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold">
-                      {c.animal_name || c.registration_number}
-                    </span>
-                    {c.sex_code && (
-                      <Badge variant="outline" className="text-xs">
-                        {c.sex_code}
-                      </Badge>
-                    )}
-                    {c.breed_code && (
-                      <Badge variant="outline" className="text-xs">
-                        {c.breed_code}
-                      </Badge>
-                    )}
-                    {c.is_genomic_enhanced && (
-                      <Badge variant="secondary" className="text-xs">
-                        GE
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Reg: {c.registration_number}
-                    {c.official_id_suffix && (
-                      <> &bull; EID: 840{c.official_id_suffix}</>
-                    )}
-                    {c.weight_lbs && <> &bull; {c.weight_lbs} lbs</>}
-                  </p>
-                </div>
+                <CattleReviewRow key={c._queueId} c={c} />
               ))}
             </CardContent>
           </Card>
@@ -990,7 +994,12 @@ export function Rancher() {
                   placeholder="e.g. 50"
                   value={investorPct}
                   disabled={isPublishing}
-                  onChange={(e) => setInvestorPct(e.target.value)}
+                  onChange={(e) => {
+                    setInvestorPct(e.target.value);
+                    // B12: same pattern as B6 - clear a stale error as soon
+                    // as the rancher starts typing a new percent.
+                    setOpenError(null);
+                  }}
                 />
               </Field>
               {(() => {

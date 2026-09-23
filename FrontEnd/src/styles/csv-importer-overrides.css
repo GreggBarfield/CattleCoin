@@ -1,0 +1,100 @@
+/*
+ * react-csv-importer ships its own plain grey/system-font styling
+ * (react-csv-importer/dist/index.css). These overrides restyle its
+ * buttons, dropzone, drag cards and colors to match the app's
+ * shadcn/Tailwind design tokens, without forking the library
+ * (punch list B9). Import this AFTER the library's own stylesheet.
+ */
+
+.CSVImporter_Importer {
+  font-family: var(--font-sans);
+  color: var(--color-foreground);
+}
+
+.CSVImporter_ImporterFrame {
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+}
+
+.CSVImporter_ImporterFrame__headerTitle,
+.CSVImporter_ImporterFrame__headerSubtitle {
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+.CSVImporter_TextButton {
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  padding: 0.5em 1.1em;
+}
+.CSVImporter_TextButton:hover:not(:disabled) {
+  background: var(--color-primary);
+  opacity: 0.9;
+}
+.CSVImporter_TextButton:disabled {
+  opacity: 0.4;
+}
+
+.CSVImporter_IconButton {
+  color: var(--color-foreground);
+}
+.CSVImporter_IconButton:hover:not(:disabled) {
+  background: var(--color-accent);
+}
+
+.CSVImporter_FileSelector {
+  border-color: var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+.CSVImporter_FileSelector[data-active="true"] {
+  background: var(--color-accent);
+}
+
+.CSVImporter_FormatErrorMessage,
+.CSVImporter_ImporterFrame__footerError {
+  color: var(--color-destructive);
+}
+
+.CSVImporter_FormatRawPreview__scroll {
+  border-radius: var(--radius-md);
+}
+
+.CSVImporter_ColumnDragCard {
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans);
+}
+.CSVImporter_ColumnDragCard[data-error="true"] {
+  background: var(--color-destructive);
+  opacity: 0.15;
+}
+
+.CSVImporter_ColumnDragTargetArea__boxLabel {
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+.CSVImporter_ColumnDragTargetArea__boxLabel > b {
+  color: var(--color-destructive);
+}
+
+.CSVImporter_ProgressDisplay {
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+.CSVImporter_ProgressDisplay__progressBar {
+  background: var(--color-muted);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.CSVImporter_ProgressDisplay__progressBarIndicator {
+  background: var(--color-primary);
+}
