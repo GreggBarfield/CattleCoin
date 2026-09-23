@@ -78,7 +78,7 @@ export async function prepareHerdForInvestors(client, { herdId, actorUserId, lis
     Number(termsRow.exit_profit_fee_pct) === 0 &&
     toCents(termsRow.per_head_fee) === 0
   ) {
-    warnings.push("All fee terms for this herd are 0 - no platform fee will be charged unless they are set before the first investor buys.");
+    warnings.push("No platform fee is currently set on this lot. If that changes before an investor buys in, we'll let you know.");
   }
 
   return {

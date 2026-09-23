@@ -649,7 +649,7 @@ router.post("/:herdId/publish", requireAuth, requireRole("rancher", "feedlot"), 
     });
   } catch (error) {
     console.error("POST /api/herds/:herdId/publish error:", error);
-    return res.status(500).json({ error: "Failed to publish herd.", detail: error.message });
+    return res.status(500).json({ error: "Failed to publish herd. Please try again or contact support." });
   }
 });
 
