@@ -280,7 +280,11 @@ function HerdCard({
         {noCattle && (
           <p className="text-sm text-amber-800">
             No cattle uploaded to this herd yet, so it can't be opened to investors.
-            Setup was probably left partway through Post a Lot.
+            Setup was probably left partway through Post a Lot.{" "}
+            <Link to={`/rancher/new?herd=${row.herd_id}`} className="font-medium underline underline-offset-2">
+              Upload cattle to finish it
+            </Link>
+            .
           </p>
         )}
         {countMismatch && (

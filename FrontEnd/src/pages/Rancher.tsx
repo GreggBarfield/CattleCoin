@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle, X, ChevronRight } from "lucide-react";
 import { Importer, ImporterField } from "react-csv-importer";
 import "react-csv-importer/dist/index.css";
@@ -24,6 +24,7 @@ import {
   type RancherBulkCowPayload,
   type RancherOpenToInvestorsResult,
 } from "@/lib/api";
+import { getHerdDetail } from "@/lib/rancherHerds";
 
 // -- Types --
 
@@ -245,12 +246,21 @@ function rowToQueuedCow(row: Record<string, string | undefined>): QueuedCow {
 
 export function Rancher() {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = React.useState<1 | 2 | 3>(1);
 
   // Step 1
   const [herd, setHerd] = React.useState<HerdFormData>(EMPTY_HERD);
   const [herdSnapshot, setHerdSnapshot] = React.useState<HerdFormData | null>(null);
   const [herdError, setHerdError] = React.useState<string | null>(null);
+
+  // Resuming a half-built herd from My Herds (?herd=<id> - punch list B2/B3):
+  // once a herd has a herd_id, step 1 is locked so "Back" then submitting it
+  // again can never create a second herd. resumeError stops the wizard
+  // entirely (wrong owner, or the herd already has cattle on it).
+  const [resuming, setResuming] = React.useState(false);
+  const [resumeError, setResumeError] = React.useState<string | null>(null);
+  const resumeAttempted = React.useRef(false);
 
   // Step 2
   const [cowQueue, setCowQueue] = React.useState<QueuedCow[]>([]);
@@ -271,6 +281,55 @@ export function Rancher() {
 
   const rancherId = currentUser?.userId ?? null;
   const cattleLocked = cattleRegistered || isRegisteringCattle;
+  // Once a herd has been created (fresh, or resumed from ?herd=), step 1 is
+  // read-only: re-submitting it must never POST a second herd (B2).
+  const herdLocked = createdHerdId !== null;
+
+  // -- Resume a half-built herd (?herd=<id>) instead of creating a new one --
+
+  React.useEffect(() => {
+    const herdParam = searchParams.get("herd");
+    if (!herdParam || resumeAttempted.current) return;
+    resumeAttempted.current = true;
+
+    if (!rancherId) {
+      setResumeError("Missing logged-in rancher session. Sign out and back in, then try again.");
+      return;
+    }
+
+    setResuming(true);
+    getHerdDetail(herdParam)
+      .then((d) => {
+        if (d.rancher_id !== rancherId) {
+          setResumeError("That herd doesn't belong to your account.");
+          return;
+        }
+        if (d.cattle_count > 0) {
+          setResumeError("That herd already has cattle registered. Go to My Herds to manage it.");
+          return;
+        }
+        const resumed: HerdFormData = {
+          name: d.herd_name ?? "",
+          genetics_label: d.cohort_label ?? "",
+          breed_code: d.breed_code ?? "",
+          season: d.season === "Spring" || d.season === "Fall" ? d.season : "",
+          listing_price: d.listing_price != null ? String(d.listing_price) : "",
+          head_count: d.head_count != null ? String(d.head_count) : "",
+          // Never saved by the backend (see punch list B1) - not recoverable.
+          birth_date: "",
+          sale_date: "",
+          sale_location: "",
+        };
+        setHerd(resumed);
+        setHerdSnapshot(resumed);
+        setCreatedHerdId(d.herd_id);
+        setStep(2);
+      })
+      .catch((err: unknown) => {
+        setResumeError(err instanceof Error && err.message ? err.message : "Could not load that herd.");
+      })
+      .finally(() => setResuming(false));
+  }, [searchParams, rancherId]);
 
   // -- Step 1 handlers --
 
@@ -281,6 +340,13 @@ export function Rancher() {
   async function handleCreateHerd(e: React.FormEvent) {
     e.preventDefault();
     setHerdError(null);
+
+    // Already created (fresh or resumed) - "Back" then submitting step 1
+    // again must never create a second herd. Just move on to step 2.
+    if (herdLocked) {
+      setStep(2);
+      return;
+    }
 
     if (!rancherId) {
       setHerdError("Missing logged-in rancher session.");
@@ -458,9 +524,34 @@ export function Rancher() {
     setHerdError(null);
     setUploadError(null);
     setCattleError(null);
+    setResumeError(null);
+    setResuming(false);
   }
 
   // -- Render --
+
+  if (resuming) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <p className="text-sm text-muted-foreground">Loading this lot...</p>
+      </div>
+    );
+  }
+
+  if (resumeError) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <div className="rounded-lg border border-border bg-card p-10 text-center">
+          <p className="text-sm text-destructive" role="alert">{resumeError}</p>
+          <div className="mt-6 flex justify-center">
+            <Button asChild>
+              <Link to="/rancher">Back to My Herds</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (published) {
     const o = openResult?.offering;
@@ -543,7 +634,9 @@ export function Rancher() {
           <CardHeader>
             <CardTitle>Herd Details</CardTitle>
             <CardDescription>
-              Define the lot name, breed, pricing, and sale information.
+              {herdLocked
+                ? "This herd was already created, so these details are locked. Continue to upload cattle."
+                : "Define the lot name, breed, pricing, and sale information."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -552,7 +645,7 @@ export function Rancher() {
                 <Input
                   placeholder="e.g. Spring Angus - 2026"
                   value={herd.name}
-                  disabled={isCreatingHerd}
+                  disabled={isCreatingHerd || herdLocked}
                   onChange={(e) => setHerdField("name", e.target.value)}
                 />
               </Field>
@@ -562,7 +655,7 @@ export function Rancher() {
                   <Input
                     placeholder="e.g. Angus x Hereford"
                     value={herd.genetics_label}
-                    disabled={isCreatingHerd}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("genetics_label", e.target.value)}
                   />
                 </Field>
@@ -570,7 +663,7 @@ export function Rancher() {
                   <Input
                     placeholder="e.g. AN"
                     value={herd.breed_code}
-                    disabled={isCreatingHerd}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) =>
                       setHerdField("breed_code", e.target.value.toUpperCase())
                     }
@@ -582,7 +675,7 @@ export function Rancher() {
                 <PillGroup
                   options={SEASON_OPTIONS}
                   value={herd.season}
-                  disabled={isCreatingHerd}
+                  disabled={isCreatingHerd || herdLocked}
                   onChange={(v) => setHerdField("season", v)}
                 />
               </Field>
@@ -595,7 +688,7 @@ export function Rancher() {
                     step="0.01"
                     placeholder="e.g. 250000"
                     value={herd.listing_price}
-                    disabled={isCreatingHerd}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("listing_price", e.target.value)}
                   />
                 </Field>
@@ -606,7 +699,7 @@ export function Rancher() {
                     step="1"
                     placeholder="e.g. 50"
                     value={herd.head_count}
-                    disabled={isCreatingHerd}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("head_count", e.target.value)}
                   />
                 </Field>
@@ -626,6 +719,7 @@ export function Rancher() {
                 <Input
                   type="date"
                   value={herd.birth_date}
+                  disabled={isCreatingHerd || herdLocked}
                   onChange={(e) => setHerdField("birth_date", e.target.value)}
                 />
               </Field>
@@ -635,6 +729,7 @@ export function Rancher() {
                   <Input
                     type="date"
                     value={herd.sale_date}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("sale_date", e.target.value)}
                   />
                 </Field>
@@ -646,6 +741,7 @@ export function Rancher() {
                   <Input
                     placeholder="e.g. 77840 or College Station, TX"
                     value={herd.sale_location}
+                    disabled={isCreatingHerd || herdLocked}
                     onChange={(e) => setHerdField("sale_location", e.target.value)}
                   />
                 </Field>
@@ -657,7 +753,7 @@ export function Rancher() {
 
               <div className="flex justify-end pt-2">
                 <Button type="submit" disabled={isCreatingHerd}>
-                  {isCreatingHerd ? "Creating Herd..." : "Create Herd"}
+                  {herdLocked ? "Continue" : isCreatingHerd ? "Creating Herd..." : "Create Herd"}
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>

@@ -95,6 +95,25 @@ export type HerdFunds = {
 
 export const getHerdFunds = (herdId: string) => getJSON<HerdFunds>(`/funds/herds/${herdId}`);
 
+// ---- GET /api/herds/:herdId -------------------------------------------------
+// Plain herd detail (this route needs no login - see punch list E5). Used by
+// Post a Lot to resume a half-built herd instead of creating a duplicate one
+// (punch list B2/B3): it gives back what step 1 originally saved, so the
+// wizard can jump straight to step 2 without calling create-herd again.
+export type HerdDetail = {
+  herd_id: string;
+  rancher_id: string;
+  herd_name: string;
+  cohort_label: string | null;
+  breed_code: string | null;
+  season: string | null;
+  head_count: number | null;
+  listing_price: string | number | null;
+  cattle_count: number;
+};
+
+export const getHerdDetail = (herdId: string) => getJSON<HerdDetail>(`/herds/${herdId}`);
+
 // ---- open / close to investors ------------------------------------------------
 export type OpenHerdResult = {
   message: string;
