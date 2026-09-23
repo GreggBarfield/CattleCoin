@@ -1,17 +1,23 @@
 import express from "express";
 import pool from "../db.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
 // ─── GET /api/users ───────────────────────────────────────────────────────────
 // Query params: ?role=investor|rancher|feedlot|admin
-// Returns minimal public info (no password_hash)
-router.get("/", async (req, res) => {
+// Requires login (E7): this used to be reachable with no token at all and
+// returned every account's email address. Any logged-in user can still look
+// up slugs by role (ranchers use this to pick a CattleCoin feedlot buyer on
+// a sale; admins use it for the investor picker on Fee setup) - only the
+// email field is gone, since nothing in the app reads it and it never
+// needed to leave the server.
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { role } = req.query;
     const validRoles = ["investor", "rancher", "feedlot", "admin"];
 
-    let query = "SELECT user_id, slug, role, email FROM users";
+    let query = "SELECT user_id, slug, role FROM users";
     const params = [];
 
     if (role) {
@@ -29,7 +35,6 @@ router.get("/", async (req, res) => {
       userId: r.user_id,
       slug:   r.slug,
       role:   r.role,
-      email:  r.email,
     })));
   } catch (err) {
     console.error("GET /api/users error:", err.message);

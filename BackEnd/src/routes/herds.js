@@ -251,7 +251,6 @@ router.get("/", async (req, res) => {
       `
       SELECT
         h.herd_id,
-        h.rancher_id,
         h.herd_name,
         h.cohort_label,
         h.breed_code,
