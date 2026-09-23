@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Milestone, Plus, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronUp, Milestone, Plus, RefreshCw } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HerdMoneyPanel } from "@/components/rancher/HerdMoneyPanel";
+import { MyPayouts } from "@/components/rancher/MyPayouts";
 import {
   getMyHerds, getMyInvestments, getHerdFunds, postOpenHerd, postCloseHerd,
   herdStatus, STATUS_LABEL, checkInvestorPct, checkPrice, offerPreview,
@@ -15,8 +17,9 @@ import {
 
 // My Herds (punch list #3, pass 1): every herd the rancher owns, with its
 // status, head count, stage, money raised and investors, plus open / close to
-// investors and a link to Herd Stages. Money actions (costs, LRP, sale,
-// payouts) come in pass 2.
+// investors and a link to Herd Stages. Pass 2 adds each herd's money actions
+// (costs, LRP records, the sale) in a panel under its card, and the rancher's
+// payouts at the bottom of the page.
 
 const STAGE_LABEL: Record<string, string> = {
   RANCH: "Ranch",
@@ -207,13 +210,15 @@ function CloseConfirm({
 // -- one herd --
 
 function HerdCard({
-  view, onChanged,
+  view, onChanged, onMoneyChanged,
 }: {
   view: HerdView;
   onChanged: (message: string) => void;
+  onMoneyChanged: () => void;
 }) {
   const { row, inv, funds } = view;
   const [mode, setMode] = useState<"none" | "open" | "close">("none");
+  const [showMoney, setShowMoney] = useState(false);
   const status = herdStatus(row);
   const headCount = row.head_count ?? 0;
   const noCattle = row.cattle_count === 0;
@@ -301,8 +306,14 @@ function HerdCard({
                 <Milestone className="mr-1 h-4 w-4" /> Herd Stages
               </Link>
             </Button>
+            <Button variant="outline" onClick={() => setShowMoney(!showMoney)} aria-expanded={showMoney}>
+              {showMoney ? <ChevronUp className="mr-1 h-4 w-4" /> : <ChevronDown className="mr-1 h-4 w-4" />}
+              Costs, LRP &amp; sale
+            </Button>
           </div>
         )}
+
+        {showMoney && <HerdMoneyPanel herd={row} onHerdChanged={onMoneyChanged} />}
       </CardContent>
     </Card>
   );
@@ -315,6 +326,7 @@ export function MyHerds() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [payoutsKey, setPayoutsKey] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -343,6 +355,14 @@ export function MyHerds() {
   function changed(msg: string) {
     setMessage(msg);
     void load();
+  }
+
+  // A sale submitted or cancelled from a herd's money panel: the panel shows its
+  // own message; the list (status, investors) and the payouts are reloaded.
+  function moneyChanged() {
+    setMessage(null);
+    void load();
+    setPayoutsKey((k) => k + 1);
   }
 
   const totals = (views ?? []).reduce(
@@ -418,9 +438,11 @@ export function MyHerds() {
 
       {views && views.length > 0 && (
         <div className="space-y-4">
-          {views.map((v) => <HerdCard key={v.row.herd_id} view={v} onChanged={changed} />)}
+          {views.map((v) => <HerdCard key={v.row.herd_id} view={v} onChanged={changed} onMoneyChanged={moneyChanged} />)}
         </div>
       )}
+
+      {views && views.length > 0 && <MyPayouts refreshKey={payoutsKey} />}
     </div>
   );
 }

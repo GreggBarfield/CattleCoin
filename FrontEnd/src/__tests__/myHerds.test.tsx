@@ -18,6 +18,12 @@ vi.mock("@/lib/rancherHerds", async () => {
   };
 });
 import { getMyHerds, getMyInvestments, getHerdFunds, postOpenHerd, postCloseHerd } from "@/lib/rancherHerds";
+// the page also shows "My payouts" (pass 2); keep that from calling the network too
+vi.mock("@/lib/rancherMoney", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rancherMoney")>("@/lib/rancherMoney");
+  return { ...actual, getMyPayouts: vi.fn() };
+});
+import { getMyPayouts } from "@/lib/rancherMoney";
 
 function herd(over: Partial<MyHerdRow>): MyHerdRow {
   return {
@@ -99,6 +105,7 @@ describe("My Herds page", () => {
     });
     vi.mocked(postOpenHerd).mockReset();
     vi.mocked(postCloseHerd).mockReset();
+    vi.mocked(getMyPayouts).mockReset().mockResolvedValue([]);
   });
 
   test("lists every herd with its status and numbers", async () => {
@@ -114,6 +121,9 @@ describe("My Herds page", () => {
     // funds are only fetched for the herd that has buyers
     expect(getHerdFunds).toHaveBeenCalledTimes(1);
     expect(getHerdFunds).toHaveBeenCalledWith(rows[2].herd_id);
+    // pass 2: the payouts card is on the page
+    await waitFor(() => expect(screen.getByText(/No payouts yet/)).toBeTruthy());
+    expect(getMyPayouts).toHaveBeenCalled();
   });
 
   test("buttons match what each herd allows", async () => {
