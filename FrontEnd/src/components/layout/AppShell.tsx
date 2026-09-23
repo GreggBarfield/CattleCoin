@@ -10,6 +10,7 @@ import {
   Wallet,
   Milestone,
   ClipboardList,
+  PlusCircle,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ export function AppShell() {
     ...(currentUser?.role === "rancher"
       ? [
           { to: "/rancher", label: "My Herds", icon: User, end: true },
+          { to: "/rancher/new", label: "Post a Lot", icon: PlusCircle, end: false },
           { to: "/rancher/stages", label: "Herd Stages", icon: Milestone, end: false },
         ]
       : []),

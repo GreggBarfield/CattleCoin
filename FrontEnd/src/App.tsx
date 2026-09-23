@@ -5,6 +5,7 @@ import { Holdings } from "@/pages/Holdings";
 import { PoolDetail } from "@/pages/PoolDetail";
 import { CowDetail } from "@/pages/CowDetail";
 import { Rancher } from "@/pages/Rancher";
+import { MyHerds } from "@/pages/MyHerds";
 import { StageUpdate } from "@/pages/StageUpdate";
 import { CarcassEntry } from "@/pages/CarcassEntry";
 import { Login } from "@/pages/Login";
@@ -91,6 +92,10 @@ function AppRoutes() {
         {/* Rancher portal */}
         <Route
           path="/rancher"
+          element={<Protected role="rancher"><MyHerds /></Protected>}
+        />
+        <Route
+          path="/rancher/new"
           element={<Protected role="rancher"><Rancher /></Protected>}
         />
         <Route

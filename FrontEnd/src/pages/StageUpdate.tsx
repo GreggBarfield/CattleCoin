@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Milestone } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,8 @@ function HistoryList({ history }: { history: StageHistoryResult["history"] }) {
 
 export function StageUpdate() {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
+  const wantedHerd = searchParams.get("herd");
   const [herds, setHerds] = useState<OwnedHerd[] | null>(null);
   const [herdsError, setHerdsError] = useState<string | null>(null);
   const [herdId, setHerdId] = useState("");
@@ -121,9 +123,13 @@ export function StageUpdate() {
   useEffect(() => {
     if (!currentUser) return;
     getHerdsByOwner(currentUser.userId)
-      .then((r) => setHerds(r.items))
+      .then((r) => {
+        setHerds(r.items);
+        // opened from My Herds with ?herd=<id>: pick that herd straight away
+        if (wantedHerd && r.items.some((h) => h.herd_id === wantedHerd)) load(wantedHerd);
+      })
       .catch((e) => setHerdsError(errMsg(e, "Could not load your herds.")));
-  }, [currentUser]);
+  }, [currentUser, wantedHerd]);
 
   function load(id: string) {
     setHerdId(id);
@@ -160,7 +166,7 @@ export function StageUpdate() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link to="/rancher" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> My Herds
         </Link>
       </div>
       <div>

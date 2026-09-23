@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "react-router-dom";
 import { CheckCircle, X, ChevronRight } from "lucide-react";
 import { Importer, ImporterField } from "react-csv-importer";
 import "react-csv-importer/dist/index.css";
@@ -508,9 +509,14 @@ export function Rancher() {
               ))}
             </div>
           )}
-          <Button className="mt-6" variant="outline" onClick={handleReset}>
-            Post Another Lot
-          </Button>
+          <div className="mt-6 flex justify-center gap-2">
+            <Button asChild>
+              <Link to="/rancher">Go to My Herds</Link>
+            </Button>
+            <Button variant="outline" onClick={handleReset}>
+              Post Another Lot
+            </Button>
+          </div>
         </div>
       </div>
     );
