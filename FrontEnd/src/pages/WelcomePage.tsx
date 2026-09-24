@@ -78,8 +78,8 @@ export function WelcomePage() {
               </div>
               <h3 className="font-semibold">Ranchers</h3>
               <p className="text-sm leading-6 text-muted-foreground">
-                List your herd, register animals, and bring real cattle into the
-                marketplace.
+                List your herd, register your animals, and choose how much of
+                its value to open to investors.
               </p>
             </div>
 
@@ -89,8 +89,8 @@ export function WelcomePage() {
               </div>
               <h3 className="font-semibold">Feedlots</h3>
               <p className="text-sm leading-6 text-muted-foreground">
-                Review herds, commit the feedlot portion first, and decide how
-                much of the lot opens to investors.
+                Buy cattle from ranchers to finish them, or list a herd you own,
+                and decide how much of it opens to investors.
               </p>
             </div>
 
@@ -101,7 +101,7 @@ export function WelcomePage() {
               <h3 className="font-semibold">Investors</h3>
               <p className="text-sm leading-6 text-muted-foreground">
                 Browse verified cattle opportunities and buy tokens for the
-                remaining open portion.
+                portion a producer has opened to investors.
               </p>
             </div>
           </div>
@@ -138,10 +138,10 @@ export function WelcomePage() {
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700">
                 2
               </div>
-              <h3 className="text-lg font-semibold">The feedlot commits first</h3>
+              <h3 className="text-lg font-semibold">The owner opens a share</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                The feedlot reviews the herd, chooses the investor allocation, and
-                takes its own share before opening the rest.
+                Whoever owns the herd - a rancher or a feedlot - chooses what
+                percent of its value to open to investors. No one has to go first.
               </p>
             </div>
 
@@ -149,10 +149,10 @@ export function WelcomePage() {
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
                 3
               </div>
-              <h3 className="text-lg font-semibold">Investors fund the rest</h3>
+              <h3 className="text-lg font-semibold">Investors buy tokens</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Individual investors buy token pieces of the remaining open
-                portion instead of paying for the whole herd.
+                Individual investors buy token pieces of the open portion
+                instead of paying for the whole herd.
               </p>
             </div>
 
@@ -171,9 +171,9 @@ export function WelcomePage() {
           <div className="mx-auto mt-8 max-w-3xl rounded-2xl border bg-muted/40 p-6 text-left md:p-8">
             <h3 className="text-xl font-semibold">Why tokenize cattle?</h3>
             <p className="mt-3 text-sm leading-7 text-muted-foreground">
-              Whole herds can be expensive. Tokens let the remaining open share be
-              split into smaller pieces, which makes it easier for more people to
-              take part while staying connected to real ranch operations.
+              Whole herds can be expensive. Tokens let the open share be split
+              into smaller pieces, which makes it easier for more people to take
+              part while staying connected to real ranch operations.
             </p>
             <div className="mt-5">
               <Link to="/FAQ" className="text-sm font-medium text-primary hover:underline">
@@ -185,7 +185,7 @@ export function WelcomePage() {
       </main>
 
       <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground">
-        CattleCoin MVP v0.1 â€” Texas A&amp;M CSCE 482
+        CattleCoin by BlockTrust Network
       </footer>
     </div>
   );

@@ -25,7 +25,7 @@ async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${path} â†’ ${res.status}: ${body}`);
+    throw new Error(`API ${path} -> ${res.status}: ${body}`);
   }
   return res.json() as Promise<T>;
 }
@@ -39,17 +39,17 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   }
 }
 
-// â”€â”€â”€ Per-investor portfolio (Dashboard) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Per-investor portfolio (Dashboard) --
 export async function getInvestorPortfolio(slug: string): Promise<PortfolioSummary> {
   return fetchJSON(`/investors/${slug}/portfolio`);
 }
 
-// â”€â”€â”€ Per-investor holdings (Holdings page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Per-investor holdings (Holdings page) --
 export async function getInvestorHoldings(slug: string): Promise<Pool[]> {
   return fetchJSON(`/investors/${slug}/holdings`);
 }
 
-// â”€â”€â”€ Pools / Herds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Pools / Herds --
 export async function getPools(): Promise<Pool[]> {
   return fetchJSON("/pools");
 }
@@ -67,7 +67,7 @@ export async function getPoolCows(poolId: string): Promise<Cow[]> {
   return fetchJSON(`/pools/${poolId}/cows`);
 }
 
-// â”€â”€â”€ Individual Cow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Individual Cow --
 export async function getCowById(cowId: string): Promise<CowDetailData | null> {
   try {
     return await fetchJSON(`/cows/${cowId}`);
@@ -77,7 +77,7 @@ export async function getCowById(cowId: string): Promise<CowDetailData | null> {
   }
 }
 
-// â”€â”€â”€ Invest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Invest --
 export async function getHerdForInvest(herdId: string): Promise<HerdInvestInfo | null> {
   try {
     return await fetchJSON(`/invest/${herdId}`);
@@ -105,7 +105,7 @@ export async function postInvestment(payload: InvestPayload): Promise<InvestResu
   return res.json() as Promise<InvestResult>;
 }
 
-// â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Auth --
 
 export async function postLogin(username: string, password: string): Promise<CurrentUser> {
   const res = await fetch(`${API_BASE}/auth/login`, {
@@ -120,7 +120,7 @@ export async function postLogin(username: string, password: string): Promise<Cur
   return res.json() as Promise<CurrentUser>;
 }
 
-// â”€â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Users --
 export type UserSummary = {
   userId: string;
   slug:   string;
@@ -132,7 +132,7 @@ export async function getUsersByRole(role: string): Promise<UserSummary[]> {
   return fetchJSON(`/users?role=${encodeURIComponent(role)}`);
 }
 
-// â”€â”€â”€ Feedlot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Feedlot --
 
 /** Herds that ranchers listed but no feedlot has claimed yet */
 export async function getFeedlotPendingHerds(): Promise<FeedlotHerd[]> {
@@ -158,7 +158,7 @@ export async function postFeedlotClaim(payload: FeedlotClaimPayload): Promise<Fe
   return res.json() as Promise<FeedlotClaimResult>;
 }
 
-// â”€â”€â”€ Rancher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Rancher --
 
 export type RancherCreateHerdPayload = {
   name: string;

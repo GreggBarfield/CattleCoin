@@ -207,7 +207,7 @@ describe("SignUp page", () => {
   });
 });
 
-// â”€â”€ WelcomePage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- WelcomePage --
 describe("WelcomePage", () => {
   beforeEach(() => localStorage.clear());
 
@@ -235,8 +235,29 @@ describe("WelcomePage", () => {
     expect(screen.getByText("Investors")).toBeTruthy();
   });
 
-  test("renders footer with version info", () => {
+  test("renders a clean footer with the platform name", () => {
     render(<Wrapper initialPath="/"><WelcomePage /></Wrapper>);
-    expect(screen.getByText(/CSCE 482/i)).toBeTruthy();
+    const footer = screen.getByText("CattleCoin by BlockTrust Network");
+    expect(footer).toBeTruthy();
+    // no mangled dash or leftover class credit
+    expect(footer.textContent).not.toMatch(/[\u00e2\u00c3\u00c2\ufffd]/);
+    expect(screen.queryByText(/CSCE 482/i)).toBeNull();
+  });
+
+  test("tells the current model: the owner opens a share, nobody goes first", () => {
+    render(<Wrapper initialPath="/"><WelcomePage /></Wrapper>);
+    expect(screen.getByText("The owner opens a share")).toBeTruthy();
+    expect(screen.getByText("Investors buy tokens")).toBeTruthy();
+    expect(screen.getByText(/No one has to go first/i)).toBeTruthy();
+    expect(screen.getByText(/or list a herd you own/i)).toBeTruthy();
+  });
+
+  test("no longer says the feedlot commits first", () => {
+    const { container } = render(<Wrapper initialPath="/"><WelcomePage /></Wrapper>);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/commits first/i);
+    expect(text).not.toMatch(/feedlot portion/i);
+    expect(text).not.toMatch(/remaining open/i);
+    expect(text).not.toMatch(/[\u00e2\u00c3\u00c2\ufffd]/);
   });
 });
