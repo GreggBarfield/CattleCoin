@@ -23,6 +23,7 @@ import myMoneyRoutes from "./routes/myMoney.js";
 import marketplaceRoutes from "./routes/marketplace.js";
 import feesRoutes from "./routes/fees.js";
 import fundsRoutes from "./routes/funds.js";
+import accountRoutes from "./routes/account.js";
 
 dotenv.config();
 
@@ -62,6 +63,7 @@ app.use("/api/my-money", myMoneyRoutes); // investor: what I paid in, what I am 
 app.use("/api/marketplace", marketplaceRoutes); // investor: lots open to investors, real numbers
 app.use("/api/fees", feesRoutes);
 app.use("/api/funds", fundsRoutes);
+app.use("/api/account", accountRoutes); // fix #10 (D8): my own account page, any role
 
 // â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/health", async (_req, res) => {

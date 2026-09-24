@@ -18,6 +18,7 @@ import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
 import { FAQPage } from "@/pages/FAQPage";
 import { NotFound } from "@/pages/NotFound";
+import { Account } from "@/pages/Account";
 import { MyMoney } from "@/pages/MyMoney";
 import { Statement } from "@/pages/Statement";
 import { AuthProvider, useAuth, homePathForRole } from "@/context/AuthContext";
@@ -124,6 +125,12 @@ function AppRoutes() {
         <Route
           path="/admin/herd-ops"
           element={<Protected role="admin"><HerdOps /></Protected>}
+        />
+
+        {/* D8 (fix #10): My Account - any logged-in role, no role restriction. */}
+        <Route
+          path="/account"
+          element={<Protected><Account /></Protected>}
         />
 
         <Route

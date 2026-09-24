@@ -14,6 +14,7 @@ import {
   ClipboardList,
   PlusCircle,
   Menu,
+  UserCog,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,26 @@ function SidebarNavContent({
       </nav>
 
       <div className="border-t border-sidebar-border px-4 py-3 space-y-2">
+        {/* D8 (fix #10): every logged-in role gets its own account page. */}
+        {currentUser && (
+          <NavLink
+            to="/account"
+            end
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+              )
+            }
+          >
+            <UserCog className="h-4 w-4" />
+            My Account
+          </NavLink>
+        )}
+
         <NavLink
           to="/FAQ"
           end
@@ -145,6 +166,10 @@ export function AppShell() {
           ? roleLabel
             ? `${roleLabel} - FAQ`
             : "FAQ"
+          : location.pathname.startsWith("/account")
+            ? roleLabel
+              ? `${roleLabel} - My Account`
+              : "My Account"
           : urlSlug
             ? `Investor Portal - ${urlSlug}`
             : "Portal";
