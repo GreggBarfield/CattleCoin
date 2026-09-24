@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import * as React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
@@ -372,5 +372,53 @@ describe("AppShell", () => {
     const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     renderWithUser(user);
     expect(screen.getByText("page content")).toBeTruthy();
+  });
+
+  // E1: the mobile nav drawer is closed by default (so it doesn't duplicate
+  // the desktop sidebar's links/buttons in the DOM - see the "renders Sign
+  // out button" test above, which would fail if it did), opens from the
+  // header's menu button, and offers the same nav links, FAQ link and Sign
+  // out button as the desktop sidebar. Once open, Radix marks the rest of
+  // the page aria-hidden (correct a11y behavior for a modal drawer), so the
+  // desktop sidebar's copies drop out of the accessibility tree - assertions
+  // below look within the drawer's own dialog element rather than counting
+  // doubled matches across the whole page.
+  test("mobile menu button opens a drawer with the same nav links and Sign out", () => {
+    const user: CurrentUser = { userId: "2", slug: "bob", role: "rancher", email: "b@test.com", token: "test-token" };
+    renderWithUser(user, "/rancher");
+
+    // Only the desktop sidebar's copy exists before the drawer opens.
+    expect(screen.getAllByRole("link", { name: /my herds/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /sign out/i })).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /open menu/i }));
+
+    const drawer = screen.getByRole("dialog");
+    expect(within(drawer).getByRole("link", { name: /my herds/i })).toBeTruthy();
+    expect(within(drawer).getByRole("link", { name: /^faq$/i })).toBeTruthy();
+    expect(within(drawer).getByRole("button", { name: /sign out/i })).toBeTruthy();
+  });
+
+  test("clicking a link in the mobile drawer closes it", () => {
+    const user: CurrentUser = { userId: "2", slug: "bob", role: "rancher", email: "b@test.com", token: "test-token" };
+    renderWithUser(user, "/rancher");
+
+    fireEvent.click(screen.getByRole("button", { name: /open menu/i }));
+    const drawer = screen.getByRole("dialog");
+    expect(drawer).toBeTruthy();
+
+    // Click the drawer's own "My Herds" link.
+    fireEvent.click(within(drawer).getByRole("link", { name: /my herds/i }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // E4: the header label keeps the logged-in role's portal name on the FAQ
+  // page instead of just showing the bare "FAQ" and losing that context.
+  test("FAQ page keeps the role's portal name in the header label", () => {
+    const user: CurrentUser = { userId: "2", slug: "bob", role: "rancher", email: "b@test.com", token: "test-token" };
+    renderWithUser(user, "/FAQ");
+    expect(screen.getByText("Rancher Portal - FAQ")).toBeTruthy();
   });
 });

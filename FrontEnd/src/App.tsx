@@ -17,6 +17,7 @@ import { InvestPage } from "@/pages/InvestPage";
 import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
 import { FAQPage } from "@/pages/FAQPage";
+import { NotFound } from "@/pages/NotFound";
 import { MyMoney } from "@/pages/MyMoney";
 import { Statement } from "@/pages/Statement";
 import { AuthProvider, useAuth, homePathForRole } from "@/context/AuthContext";
@@ -45,8 +46,6 @@ function Protected({
 
 // ── Inner app (needs AuthContext already mounted) ─────────────────────────────
 function AppRoutes() {
-  const { currentUser } = useAuth();
-
   return (
     <Routes>
       {/* Welcome / landing */}
@@ -133,15 +132,9 @@ function AppRoutes() {
         />
       </Route>
 
-      {/* Catch-all: if logged in go home, otherwise login */}
-      <Route
-        path="*"
-        element={
-          currentUser
-            ? <Navigate to={homePathForRole(currentUser)} replace />
-            : <Navigate to="/login" replace />
-        }
-      />
+      {/* Catch-all: E2 - a real 404 page for an unknown URL, instead of a
+          silent redirect home. NotFound itself offers a way back in. */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
