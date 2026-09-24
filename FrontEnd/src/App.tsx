@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
+import { PageTitle } from "@/components/layout/PageTitle";
 import { InvestorDashboard } from "@/pages/InvestorDashboard";
 import { Holdings } from "@/pages/Holdings";
 import { PoolDetail } from "@/pages/PoolDetail";
@@ -149,6 +150,8 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* E3: keeps the browser tab title in step with the page shown. */}
+      <PageTitle />
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
