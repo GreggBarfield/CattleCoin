@@ -341,10 +341,13 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: /my herds/i })).toBeTruthy();
   });
 
-  test("feedlot user sees Feedlot nav link", () => {
+  test("feedlot user sees My Herds, Post a Lot, Herd Stages and Carcass Records nav links (fix #14)", () => {
     const user: CurrentUser = { userId: "3", slug: "fl1", role: "feedlot", email: "f@test.com", token: "test-token" };
     renderWithUser(user, "/feedlot");
-    expect(screen.getByRole("link", { name: /feedlot/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /my herds/i }).getAttribute("href")).toBe("/feedlot");
+    expect(screen.getByRole("link", { name: /post a lot/i }).getAttribute("href")).toBe("/feedlot/new");
+    expect(screen.getByRole("link", { name: /herd stages/i }).getAttribute("href")).toBe("/feedlot/stages");
+    expect(screen.getByRole("link", { name: /carcass records/i }).getAttribute("href")).toBe("/feedlot/carcass");
   });
 
   test("admin user sees Admin nav link", () => {

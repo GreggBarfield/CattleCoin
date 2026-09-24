@@ -191,6 +191,42 @@ export const getSale = (saleId: string) => getJSON<SaleDetail>(`/settlement/sale
 export const cancelSale = (saleId: string) =>
   sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/cancel`, "POST");
 
+// The buyer's side of a sale sent to a CattleCoin feedlot (fix #14, tracker FD-A1).
+// The server lets only the named buyer answer. Accepting sends the sale on to
+// CattleCoin for approval; declining closes it and puts the herd back.
+export const acceptSale = (saleId: string, note?: string) =>
+  sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/accept`, "POST", note ? { note } : undefined);
+export const declineSale = (saleId: string, note?: string) =>
+  sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/decline`, "POST", note ? { note } : undefined);
+
+// Where a sale stands for the person it was sent to.
+//   answer    - sent to you, waiting for you to accept or decline
+//   accepted  - you said yes, waiting for CattleCoin to approve
+//   approved  - approved; the herd is in your My Herds
+//   declined  - you said no
+//   cancelled - the seller took it back
+//   rejected  - CattleCoin turned it down
+export type OfferState = "answer" | "accepted" | "approved" | "declined" | "cancelled" | "rejected";
+
+/** How a sale looks to `userId`, or null when it was not sent to them. */
+export function offerState(sale: Sale, userId: string | null | undefined): OfferState | null {
+  if (!userId || sale.buyerUserId !== userId) return null;
+  if (sale.status === "approved") return "approved";
+  if (sale.status === "cancelled") return "cancelled";
+  if (sale.status === "rejected") return sale.buyerResponse === "declined" ? "declined" : "rejected";
+  if (sale.buyerResponse === "accepted") return "accepted";
+  return "answer";
+}
+
+export const OFFER_STATE_LABEL: Record<OfferState, string> = {
+  answer: "Needs your answer",
+  accepted: "Accepted - waiting for CattleCoin",
+  approved: "Approved - in My Herds",
+  declined: "You declined",
+  cancelled: "Seller cancelled",
+  rejected: "CattleCoin rejected",
+};
+
 export type FeedlotOption = { userId: string; slug: string };
 // CattleCoin feedlot accounts a herd can be sold to (the buyer then accepts it on the platform).
 export const getFeedlots = () =>

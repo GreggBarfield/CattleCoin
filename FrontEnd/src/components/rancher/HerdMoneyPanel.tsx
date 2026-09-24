@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/context/AuthContext";
 import { getHerdFunds, type HerdFunds } from "@/lib/rancherHerds";
 import {
   getCosts, postCost, patchCost, voidCost, checkCost, COST_CATEGORIES, CATEGORY_LABEL, SOURCE_LABEL,
@@ -534,6 +535,7 @@ function SaleForm({
   onDone: (msg: string, herdChanged: boolean) => void;
 }) {
   const headCount = herd.head_count ?? 0;
+  const { currentUser } = useAuth();
   const [s, setS] = useState<SaleInput>(EMPTY_SALE);
   const [feedlots, setFeedlots] = useState<FeedlotOption[] | null>(null);
   const [review, setReview] = useState(false);
@@ -606,7 +608,8 @@ function SaleForm({
             <Field id={`buyer-slug-${id}`} label="Feedlot">
               <select id={`buyer-slug-${id}`} className={SELECT_CLASS} value={s.buyerSlug} onChange={set("buyerSlug")} disabled={busy || feedlots === null}>
                 <option value="">{feedlots === null ? "Loading..." : "Choose a feedlot"}</option>
-                {(feedlots ?? []).map((f) => <option key={f.userId} value={f.slug}>{f.slug}</option>)}
+                {/* a feedlot selling its own herd can't sell it to itself - the server refuses that */}
+                {(feedlots ?? []).filter((f) => f.userId !== currentUser?.userId).map((f) => <option key={f.userId} value={f.slug}>{f.slug}</option>)}
               </select>
             </Field>
             <p className="text-xs text-muted-foreground">The feedlot accepts the sale on CattleCoin before it is approved. The herd then moves to their account.</p>

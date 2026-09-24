@@ -25,7 +25,9 @@ const ROUTE_TITLES: Array<[RegExp, string | null]> = [
   [/^\/rancher\/new$/, "Post a Lot"],
   [/^\/rancher\/stages$/, "Herd Stages"],
 
-  [/^\/feedlot$/, "Feedlot"],
+  [/^\/feedlot$/, "My Herds"],
+  [/^\/feedlot\/new$/, "Post a Lot"],
+  [/^\/feedlot\/stages$/, "Herd Stages"],
   [/^\/feedlot\/carcass$/, "Carcass Records"],
 
   [/^\/admin$/, "Admin"],

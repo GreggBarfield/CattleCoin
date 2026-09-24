@@ -7,10 +7,6 @@ import type {
   HerdInvestInfo,
   InvestPayload,
   InvestResult,
-  FeedlotHerd,
-  FeedlotDashboard,
-  FeedlotClaimPayload,
-  FeedlotClaimResult,
 } from "./types";
 import { getAuthToken, type CurrentUser } from "@/context/AuthContext";
 
@@ -132,31 +128,8 @@ export async function getUsersByRole(role: string): Promise<UserSummary[]> {
   return fetchJSON(`/users?role=${encodeURIComponent(role)}`);
 }
 
-// -- Feedlot --
-
-/** Herds that ranchers listed but no feedlot has claimed yet */
-export async function getFeedlotPendingHerds(): Promise<FeedlotHerd[]> {
-  return fetchJSON("/feedlot/pending");
-}
-
-/** Herds claimed by this feedlot (listed/sold) */
-export async function getFeedlotDashboard(slug: string): Promise<FeedlotDashboard> {
-  return fetchJSON(`/feedlot/${slug}/dashboard`);
-}
-
-/** Feedlot claims a pending herd and sets investor percentage */
-export async function postFeedlotClaim(payload: FeedlotClaimPayload): Promise<FeedlotClaimResult> {
-  const res = await fetch(`${API_BASE}/feedlot/claim`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(body || `Claim failed: ${res.status}`);
-  }
-  return res.json() as Promise<FeedlotClaimResult>;
-}
+// (Fix #14: the old feedlot "claim a pending herd" calls were removed. A feedlot
+// now gets herds by accepting an offer to buy - see lib/rancherMoney.ts.)
 
 // -- Rancher --
 

@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HerdMoneyPanel } from "@/components/rancher/HerdMoneyPanel";
 import { MyPayouts } from "@/components/rancher/MyPayouts";
+import { IncomingOffers } from "@/components/feedlot/IncomingOffers";
+import { useAuth } from "@/context/AuthContext";
+import { useHerdBase } from "@/lib/herdBase";
 import {
   getMyHerds, getMyInvestments, getHerdFunds, postOpenHerd, postCloseHerd,
   herdStatus, STATUS_LABEL, checkInvestorPct, checkPrice, offerPreview,
@@ -217,6 +220,7 @@ function HerdCard({
   onMoneyChanged: () => void;
 }) {
   const { row, inv, funds } = view;
+  const herdBase = useHerdBase();
   const [mode, setMode] = useState<"none" | "open" | "close">("none");
   const [showMoney, setShowMoney] = useState(false);
   const status = herdStatus(row);
@@ -281,7 +285,7 @@ function HerdCard({
           <p className="text-sm text-amber-800">
             No cattle uploaded to this herd yet, so it can't be opened to investors.
             Setup was probably left partway through Post a Lot.{" "}
-            <Link to={`/rancher/new?herd=${row.herd_id}`} className="font-medium underline underline-offset-2">
+            <Link to={`${herdBase}/new?herd=${row.herd_id}`} className="font-medium underline underline-offset-2">
               Upload cattle to finish it
             </Link>
             .
@@ -306,7 +310,7 @@ function HerdCard({
             {canOpen && <Button onClick={() => setMode("open")}>Open to Investors</Button>}
             {canClose && <Button variant="outline" onClick={() => setMode("close")}>Close to Investors</Button>}
             <Button variant="outline" asChild>
-              <Link to={`/rancher/stages?herd=${row.herd_id}`}>
+              <Link to={`${herdBase}/stages?herd=${row.herd_id}`}>
                 <Milestone className="mr-1 h-4 w-4" /> Herd Stages
               </Link>
             </Button>
@@ -326,6 +330,10 @@ function HerdCard({
 // -- page --
 
 export function MyHerds() {
+  const { currentUser } = useAuth();
+  const herdBase = useHerdBase();
+  const isFeedlot = currentUser?.role === "feedlot";
+  const [offersKey, setOffersKey] = useState(0);
   const [views, setViews] = useState<HerdView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -388,18 +396,22 @@ export function MyHerds() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Herds</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Every lot you've posted, where it stands, and what investors have put in.
+            {isFeedlot
+              ? "Every herd you own, where it stands, and what investors have put in."
+              : "Every lot you've posted, where it stands, and what investors have put in."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button variant="outline" onClick={() => { void load(); setOffersKey((k) => k + 1); }} disabled={loading}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
           <Button asChild>
-            <Link to="/rancher/new"><Plus className="mr-1 h-4 w-4" /> Post a Lot</Link>
+            <Link to={`${herdBase}/new`}><Plus className="mr-1 h-4 w-4" /> Post a Lot</Link>
           </Button>
         </div>
       </div>
+
+      {isFeedlot && <IncomingOffers refreshKey={offersKey} onAnswered={() => setPayoutsKey((k) => k + 1)} />}
 
       {views && views.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -432,9 +444,13 @@ export function MyHerds() {
       {views && views.length === 0 && (
         <Card className="rounded-3xl">
           <CardContent className="space-y-3 p-8 text-center">
-            <p className="text-sm text-muted-foreground">You haven't posted any lots yet.</p>
+            <p className="text-sm text-muted-foreground">
+              {isFeedlot
+                ? "You don't have any herds yet. A herd shows up here once you accept an offer to buy it and CattleCoin approves the sale, or you can post one of your own."
+                : "You haven't posted any lots yet."}
+            </p>
             <Button asChild>
-              <Link to="/rancher/new"><Plus className="mr-1 h-4 w-4" /> Post your first lot</Link>
+              <Link to={`${herdBase}/new`}><Plus className="mr-1 h-4 w-4" /> Post your first lot</Link>
             </Button>
           </CardContent>
         </Card>

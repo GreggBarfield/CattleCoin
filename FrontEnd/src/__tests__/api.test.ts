@@ -30,8 +30,6 @@ import {
   getHerdForInvest,
   postLogin,
   getUsersByRole,
-  getFeedlotPendingHerds,
-  getFeedlotDashboard,
 } from "@/lib/api";
 
 describe("getInvestorPortfolio", () => {
@@ -174,27 +172,5 @@ describe("getUsersByRole", () => {
     vi.stubGlobal("fetch", mockFn);
     await getUsersByRole("investor");
     expect(mockFn.mock.calls[0][0]).toContain("role=investor");
-  });
-});
-
-describe("getFeedlotPendingHerds", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  test("calls /feedlot/pending endpoint", async () => {
-    const mockFn = mockFetchOk([]);
-    vi.stubGlobal("fetch", mockFn);
-    await getFeedlotPendingHerds();
-    expect(mockFn.mock.calls[0][0]).toContain("/feedlot/pending");
-  });
-});
-
-describe("getFeedlotDashboard", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  test("calls /feedlot/:slug/dashboard endpoint", async () => {
-    const mockFn = mockFetchOk({ feedlotSlug: "fl1", claimedHerds: [] });
-    vi.stubGlobal("fetch", mockFn);
-    await getFeedlotDashboard("fl1");
-    expect(mockFn.mock.calls[0][0]).toContain("/feedlot/fl1/dashboard");
   });
 });

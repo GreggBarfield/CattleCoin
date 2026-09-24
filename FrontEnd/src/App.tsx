@@ -15,7 +15,6 @@ import { Admin } from "@/pages/Admin";
 import { FeeSetup } from "@/pages/FeeSetup";
 import { HerdOps } from "@/pages/HerdOps";
 import { InvestPage } from "@/pages/InvestPage";
-import { FeedlotPage } from "@/pages/FeedlotPage";
 import { WelcomePage } from "@/pages/WelcomePage";
 import { FAQPage } from "@/pages/FAQPage";
 import { NotFound } from "@/pages/NotFound";
@@ -105,9 +104,19 @@ function AppRoutes() {
         />
 
         {/* Feedlot portal */}
+        {/* Fix #14: a feedlot runs its herds with the same screens a rancher
+            uses (offers to buy, costs, LRP, sale, stages, payouts), under /feedlot. */}
         <Route
           path="/feedlot"
-          element={<Protected role="feedlot"><FeedlotPage /></Protected>}
+          element={<Protected role="feedlot"><MyHerds /></Protected>}
+        />
+        <Route
+          path="/feedlot/new"
+          element={<Protected role="feedlot"><Rancher /></Protected>}
+        />
+        <Route
+          path="/feedlot/stages"
+          element={<Protected role="feedlot"><StageUpdate /></Protected>}
         />
         <Route
           path="/feedlot/carcass"

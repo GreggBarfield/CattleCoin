@@ -5,7 +5,9 @@ import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 const router = express.Router();
 const HERD_STATUSES = ["available", "pending", "sold"];
 
-router.use(requireAuth, requireRole("rancher"));
+// A feedlot owns herds too (bought through an accepted sale, or posted itself),
+// so its My Herds page reads the same "my herds" routes as a rancher's.
+router.use(requireAuth, requireRole("rancher", "feedlot"));
 
 function normalizeStatus(value) {
   if (!value) return null;

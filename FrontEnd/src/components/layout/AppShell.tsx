@@ -6,7 +6,6 @@ import {
   Settings,
   User,
   Warehouse,
-  Tractor,
   LogOut,
   CircleHelp,
   Wallet,
@@ -208,7 +207,9 @@ export function AppShell() {
       : []),
     ...(currentUser?.role === "feedlot"
       ? [
-          { to: "/feedlot", label: "Feedlot", icon: Tractor, end: true },
+          { to: "/feedlot", label: "My Herds", icon: User, end: true },
+          { to: "/feedlot/new", label: "Post a Lot", icon: PlusCircle, end: false },
+          { to: "/feedlot/stages", label: "Herd Stages", icon: Milestone, end: false },
           { to: "/feedlot/carcass", label: "Carcass Records", icon: ClipboardList, end: false },
         ]
       : []),

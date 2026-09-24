@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
+import { herdBaseFor } from "@/lib/herdBase";
 import {
   getHerdsByOwner, getStageHistory, postStageChange, nextStage,
   STAGES, LifecycleApiError,
@@ -131,6 +132,7 @@ function HistoryList({ history }: { history: StageHistoryResult["history"] }) {
 
 export function StageUpdate() {
   const { currentUser } = useAuth();
+  const herdBase = herdBaseFor(currentUser?.role);
   const [searchParams] = useSearchParams();
   const wantedHerd = searchParams.get("herd");
   const [herds, setHerds] = useState<OwnedHerd[] | null>(null);
@@ -194,7 +196,7 @@ export function StageUpdate() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link to="/rancher" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link to={herdBase} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> My Herds
         </Link>
       </div>
@@ -224,7 +226,7 @@ export function StageUpdate() {
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">You don't have any herds yet.</p>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to="/rancher/new">
+                  <Link to={`${herdBase}/new`}>
                     <Plus className="mr-1 h-4 w-4" /> Post a lot
                   </Link>
                 </Button>

@@ -159,6 +159,19 @@ function saleWarnings(r) {
   return w;
 }
 
+// The buyer on a sale (who is not the seller and not an admin) sees the deal -
+// price, load, LRP payout - but not how the seller's costs, investors and
+// providers split the money. Those four fields are blanked for that viewer.
+function isBuyerOnly(row, user) {
+  return user.role !== "admin" && row.seller_user_id !== user.userId && row.buyer_user_id === user.userId;
+}
+
+function shapeSaleFor(row, user) {
+  const sale = shapeSale(row);
+  if (!isBuyerOnly(row, user)) return sale;
+  return { ...sale, expensesTotal: null, netAmount: null, platformFeesTotal: null, feeTerms: null };
+}
+
 function shapeSale(r) {
   const salePrice = Number(r.gross_amount);
   const lrp = Number(r.lrp_indemnity ?? 0);
@@ -696,7 +709,7 @@ router.get("/sales", requireAuth, async (req, res) => {
        ORDER BY s.submitted_at DESC`,
       params
     );
-    return res.json(result.rows.map(shapeSale));
+    return res.json(result.rows.map((r) => shapeSaleFor(r, req.user)));
   } catch (err) {
     return sendError(res, "GET /api/settlement/sales", err);
   }
@@ -720,9 +733,12 @@ router.get("/sales/:saleId", requireAuth, async (req, res) => {
       row.buyer_user_id === req.user.userId;
     if (!allowed) return res.status(403).json({ error: "You are not allowed to view this sale." });
 
-    const out = { sale: shapeSale(row) };
+    const out = { sale: shapeSaleFor(row, req.user) };
 
-    if (row.status === "pending_approval") {
+    // The buyer sees the deal, not the seller's split (see isBuyerOnly above).
+    if (isBuyerOnly(row, req.user)) {
+      // no preview and no payout rows
+    } else if (row.status === "pending_approval") {
       const breakdown = await computeSettlement(pool, {
         herdId: row.herd_id,
         ownerId: row.seller_user_id,
@@ -976,7 +992,7 @@ router.post("/sales/:saleId/accept", requireAuth, requireRole(...OWNER_ROLES), a
     });
     return res.json({
       message: "You accepted this sale. It now waits for admin approval; the herd moves to your account when it is approved.",
-      sale: shapeSale(row),
+      sale: shapeSaleFor(row, req.user),
     });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/accept", err);
@@ -995,7 +1011,7 @@ router.post("/sales/:saleId/decline", requireAuth, requireRole(...OWNER_ROLES), 
       saleId, newStatus: "rejected", actorId: req.user.userId,
       note: note ?? "Declined by the buyer.", onlySeller: false, onlyBuyer: true,
     });
-    return res.json({ message: "You declined this sale. The herd is back to its previous status.", sale: shapeSale(row) });
+    return res.json({ message: "You declined this sale. The herd is back to its previous status.", sale: shapeSaleFor(row, req.user) });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/decline", err);
   }

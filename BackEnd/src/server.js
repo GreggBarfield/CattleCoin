@@ -6,7 +6,6 @@ import poolsRoutes from "./routes/pools.js";
 import cowsRoutes from "./routes/cows.js";
 import investorsRoutes from "./routes/investors.js";
 import investRoutes from "./routes/invest.js";
-import feedlotsRoutes from "./routes/feedlots.js";
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
 import rancherRoutes from "./routes/rancher.js";
@@ -46,7 +45,6 @@ app.use("/api/cows", cowsRoutes);
 // See step-dashboard-real-numbers.md.
 app.use("/api/investors", investorsRoutes); // per-investor dashboard + holdings
 app.use("/api/invest",    investRoutes);    // POST buy-tokens form
-app.use("/api/feedlot",  feedlotsRoutes);  // feedlot claim + dashboard
 app.use("/api/auth",     authRoutes);      // login
 app.use("/api/users",    usersRoutes);     // user list by role
 app.use("/api/rancher", rancherRoutes);

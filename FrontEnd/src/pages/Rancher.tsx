@@ -26,6 +26,7 @@ import {
   type RancherOpenToInvestorsResult,
 } from "@/lib/api";
 import { getHerdDetail } from "@/lib/rancherHerds";
+import { herdBaseFor } from "@/lib/herdBase";
 import { headCountMismatchWarning, missingHerdFields } from "@/lib/rancherWizardValidation";
 
 // -- Types --
@@ -646,7 +647,7 @@ export function Rancher() {
           <p className="text-sm text-destructive" role="alert">{resumeError}</p>
           <div className="mt-6 flex justify-center">
             <Button asChild>
-              <Link to="/rancher">Back to My Herds</Link>
+              <Link to={herdBaseFor(currentUser?.role)}>Back to My Herds</Link>
             </Button>
           </div>
         </div>
@@ -703,7 +704,7 @@ export function Rancher() {
           )}
           <div className="mt-6 flex justify-center gap-2">
             <Button asChild>
-              <Link to="/rancher">Go to My Herds</Link>
+              <Link to={herdBaseFor(currentUser?.role)}>Go to My Herds</Link>
             </Button>
             <Button variant="outline" onClick={handleReset}>
               Post Another Lot
