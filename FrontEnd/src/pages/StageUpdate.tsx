@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
-import { herdBaseFor } from "@/lib/herdBase";
+import { herdBaseFor, noHerdsMessage } from "@/lib/herdBase";
 import {
   getHerdsByOwner, getStageHistory, postStageChange, nextStage,
   STAGES, LifecycleApiError,
@@ -224,7 +224,7 @@ export function StageUpdate() {
             <Label>Herd</Label>
             {herds === null ? <Skeleton className="h-10 w-full" /> : herds.length === 0 ? (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">You don't have any herds yet.</p>
+                <p className="text-sm text-muted-foreground">{noHerdsMessage(currentUser?.role)}</p>
                 <Button variant="outline" size="sm" asChild>
                   <Link to={`${herdBase}/new`}>
                     <Plus className="mr-1 h-4 w-4" /> Post a lot

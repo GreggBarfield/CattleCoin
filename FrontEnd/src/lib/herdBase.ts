@@ -14,3 +14,11 @@ export function useHerdBase(): "/feedlot" | "/rancher" {
   const { currentUser } = useAuth();
   return herdBaseFor(currentUser?.role);
 }
+
+/** What an empty herd list says. A feedlot's herds arrive by accepting a sale, so it needs a next step. */
+export function noHerdsMessage(role: string | null | undefined): string {
+  if (role === "feedlot") {
+    return "You don't have any herds yet. A herd shows up here once you accept an offer to buy it and CattleCoin approves the sale, or you can post one of your own.";
+  }
+  return "You don't have any herds yet.";
+}

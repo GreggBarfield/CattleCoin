@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
+import { herdBaseFor, noHerdsMessage } from "@/lib/herdBase";
 import {
   getHerdsByOwner, getHerdAnimals, getHerdCarcass,
   postCarcassRecord, putCarcassRecord, voidCarcassRecord,
@@ -357,7 +358,17 @@ export function CarcassEntry() {
           <div className="grid gap-1.5 md:max-w-md">
             <Label>Herd</Label>
             {herds === null ? <Skeleton className="h-10 w-full" /> : herds.length === 0 ? (
-              <p className="text-sm text-muted-foreground">You don't have any herds yet.</p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{noHerdsMessage(currentUser?.role)}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={herdBaseFor(currentUser?.role)}>Go to My Herds</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`${herdBaseFor(currentUser?.role)}/new`}>Post a lot</Link>
+                  </Button>
+                </div>
+              </div>
             ) : (
               <Select value={herdId} onValueChange={load}>
                 <SelectTrigger><SelectValue placeholder="Choose a herd" /></SelectTrigger>
