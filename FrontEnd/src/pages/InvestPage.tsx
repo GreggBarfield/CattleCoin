@@ -18,6 +18,7 @@ import { StageBadge } from "@/components/common/StageBadge";
 import { getHerdForInvest } from "@/lib/api";
 import type { HerdInvestInfo } from "@/lib/types";
 import { formatUsd } from "@/lib/utils";
+import { price } from "@/lib/marketplace";
 import { useAuth } from "@/context/AuthContext";
 
 // Stripe singleton — initialised once outside render
@@ -126,7 +127,7 @@ function PaymentForm({ herd, investorSlug, tokens, onSuccess }: PaymentFormProps
       {/* Total */}
       <div className="rounded-lg bg-slate-50 p-4 flex justify-between items-center">
         <span className="text-sm text-slate-600">Total charge</span>
-        <span className="text-xl font-bold">{formatUsd(totalCost)}</span>
+        <span className="text-xl font-bold">{price(totalCost)}</span>
       </div>
 
       {error && (
@@ -141,7 +142,7 @@ function PaymentForm({ herd, investorSlug, tokens, onSuccess }: PaymentFormProps
         disabled={!stripe || submitting}
         className="w-full bg-green-600 hover:bg-green-700 text-white"
       >
-        {submitting ? "Processing…" : `Pay ${formatUsd(totalCost)}`}
+        {submitting ? "Processing…" : `Pay ${price(totalCost)}`}
       </Button>
     </form>
   );
@@ -246,7 +247,7 @@ export function InvestPage() {
           <span className="font-medium">{formatUsd(herd.listingPrice)}</span>
 
           <span className="text-slate-500">Price per Token</span>
-          <span className="font-medium">{formatUsd(herd.pricePerToken)}</span>
+          <span className="font-medium">{price(herd.pricePerToken)}</span>
 
           <span className="text-slate-500">Tokens Available</span>
           <span className="font-medium">
@@ -298,7 +299,7 @@ export function InvestPage() {
 
             <div className="rounded-lg bg-slate-50 p-4 flex justify-between items-center">
               <span className="text-sm text-slate-600">Total cost</span>
-              <span className="text-xl font-bold">{formatUsd(tokens * herd.pricePerToken)}</span>
+              <span className="text-xl font-bold">{price(tokens * herd.pricePerToken)}</span>
             </div>
 
             <Button
