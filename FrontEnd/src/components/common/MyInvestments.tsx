@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<PurchaseStatus, string> = {
 interface MyInvestmentsProps {
   pools: Pool[];
   loading?: boolean;
-  /** Investor slug â€” used to build the correct navigation URL */
+  /** Investor slug — used to build the correct navigation URL */
   slug: string;
 }
 

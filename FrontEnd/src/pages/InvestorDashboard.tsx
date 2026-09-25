@@ -84,7 +84,7 @@ export function InvestorDashboard() {
         )}
       </div>
 
-      {/* KPI Cards â€” all labeled */}
+      {/* KPI Cards — all labeled */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <>
@@ -120,10 +120,10 @@ export function InvestorDashboard() {
         ) : null}
       </div>
 
-      {/* My Investments â€” clickable cards, each navigates to /investor/:slug/holdings/:id */}
+      {/* My Investments — clickable cards, each navigates to /investor/:slug/holdings/:id */}
       <MyInvestments pools={holdings} loading={loading} slug={resolvedSlug} />
 
-      {/* Recent Lifecycle Events â€” show herd name not raw UUID */}
+      {/* Recent Lifecycle Events — show herd name not raw UUID */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent Lifecycle Events</CardTitle>
@@ -145,7 +145,7 @@ export function InvestorDashboard() {
                         to={`/investor/${resolvedSlug}/holdings/${ev.poolId}`}
                         className="font-medium text-blue-600 hover:underline truncate block"
                       >
-                        {/* Show herd name â€” fall back to ID only if name unavailable */}
+                        {/* Show herd name — fall back to ID only if name unavailable */}
                         {herdNameMap.get(ev.poolId) ?? ev.poolId}
                       </Link>
                     )}
@@ -170,7 +170,7 @@ export function InvestorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Top Lots â€” "View all" goes to /investor/:slug/holdings */}
+      {/* Top Lots — "View all" goes to /investor/:slug/holdings */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Top Lots by Value</CardTitle>

@@ -12,14 +12,14 @@ const mockUser: CurrentUser = {
   token:  "test-token",
 };
 
-// â”€â”€ Wrapper to read context values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Wrapper to read context values ───────────────────────────────────────────
 function TestConsumer({ onValue }: { onValue: (v: ReturnType<typeof useAuth>) => void }) {
   const ctx = useAuth();
   React.useEffect(() => { onValue(ctx); }, [ctx, onValue]);
   return null;
 }
 
-// â”€â”€â”€ AuthProvider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AuthProvider ─────────────────────────────────────────────────────────────
 describe("AuthProvider", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -84,22 +84,22 @@ describe("AuthProvider", () => {
   });
 });
 
-// â”€â”€â”€ homePathForRole â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── homePathForRole ──────────────────────────────────────────────────────────
 describe("homePathForRole", () => {
-  test("investor â†’ /investor/:slug/dashboard", () => {
+  test("investor → /investor/:slug/dashboard", () => {
     const user: CurrentUser = { ...mockUser, role: "investor", slug: "alice" };
     expect(homePathForRole(user)).toBe("/investor/alice/dashboard");
   });
 
-  test("rancher â†’ /rancher", () => {
+  test("rancher → /rancher", () => {
     expect(homePathForRole({ ...mockUser, role: "rancher" })).toBe("/rancher");
   });
 
-  test("feedlot â†’ /feedlot", () => {
+  test("feedlot → /feedlot", () => {
     expect(homePathForRole({ ...mockUser, role: "feedlot" })).toBe("/feedlot");
   });
 
-  test("admin â†’ /admin", () => {
+  test("admin → /admin", () => {
     expect(homePathForRole({ ...mockUser, role: "admin" })).toBe("/admin");
   });
 });

@@ -5,8 +5,6 @@ import type {
   PoolDetail,
   PortfolioSummary,
   HerdInvestInfo,
-  InvestPayload,
-  InvestResult,
 } from "./types";
 import { getAuthToken, type CurrentUser } from "@/context/AuthContext";
 
@@ -17,11 +15,26 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// Thrown by fetchJSON on a non-ok response. Keeps the same `.message` shape
+// callers already match on (`err.message.includes("404")`) while also
+// carrying the raw status/body for callers that need more than that, like
+// getPoolById below.
+class ApiError extends Error {
+  status: number;
+  bodyText: string;
+  constructor(path: string, status: number, bodyText: string) {
+    super(`API ${path} -> ${status}: ${bodyText}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.bodyText = bodyText;
+  }
+}
+
 async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${path} -> ${res.status}: ${body}`);
+    throw new ApiError(path, res.status, body);
   }
   return res.json() as Promise<T>;
 }
@@ -50,10 +63,40 @@ export async function getPools(): Promise<Pool[]> {
   return fetchJSON("/pools");
 }
 
+// Reason a herd detail lookup 404'd, from the backend's pools.js fallback
+// status lookup - lets the UI say something better than a generic
+// "not found" (a sold/settled herd disappears from the marketplace query
+// entirely, but it isn't the same case as an ID that never existed).
+export type PoolNotFoundReason = "sold" | "pending" | "unlisted" | "not_found";
+
+export class PoolNotFoundError extends Error {
+  reason: PoolNotFoundReason;
+  herdName?: string;
+  constructor(reason: PoolNotFoundReason, herdName?: string) {
+    super(`Pool not found: ${reason}`);
+    this.name = "PoolNotFoundError";
+    this.reason = reason;
+    this.herdName = herdName;
+  }
+}
+
 export async function getPoolById(poolId: string): Promise<PoolDetail | null> {
   try {
     return await fetchJSON(`/pools/${poolId}`);
   } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 404) {
+      try {
+        const body = JSON.parse(err.bodyText) as
+          | { reason?: PoolNotFoundReason; herdName?: string }
+          | undefined;
+        if (body?.reason) throw new PoolNotFoundError(body.reason, body.herdName);
+      } catch (parseErr) {
+        if (parseErr instanceof PoolNotFoundError) throw parseErr;
+        // body wasn't the expected shape - fall through to the plain null
+        // below, same as any other unrecognized 404.
+      }
+      return null;
+    }
     if (err instanceof Error && err.message.includes("404")) return null;
     throw err;
   }
@@ -81,24 +124,6 @@ export async function getHerdForInvest(herdId: string): Promise<HerdInvestInfo |
     if (err instanceof Error && err.message.includes("404")) return null;
     throw err;
   }
-}
-
-// NOTE: this posts to /invest, which does not match any route currently in
-// invest.js (that file only has /invest/:herdId, /invest/create-payment-intent,
-// /invest/confirm, /invest/webhook). Left as-is and untouched by the auth
-// work - looks like pre-existing dead/unwired code, flagging for later, not
-// fixing here since it's outside the scope of this pass.
-export async function postInvestment(payload: InvestPayload): Promise<InvestResult> {
-  const res = await fetch(`${API_BASE}/invest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(body || `Investment failed: ${res.status}`);
-  }
-  return res.json() as Promise<InvestResult>;
 }
 
 // -- Auth --

@@ -203,6 +203,7 @@ export function AppShell() {
           { to: "/rancher", label: "My Herds", icon: User, end: true },
           { to: "/rancher/new", label: "Post a Lot", icon: PlusCircle, end: false },
           { to: "/rancher/stages", label: "Herd Stages", icon: Milestone, end: false },
+          { to: "/rancher/carcass", label: "Carcass Records", icon: ClipboardList, end: false },
         ]
       : []),
     ...(currentUser?.role === "feedlot"

@@ -67,7 +67,7 @@ async function attachDisplayFields(moneyHerds) {
   });
 }
 
-// â”€â”€â”€ GET /api/investors/:slug/portfolio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/investors/:slug/portfolio ─────────────────────────────────────
 // Returns the Dashboard data scoped to a single investor (by slug, e.g. "investor2")
 // Security fix 2026-09-21: this route previously had no requireAuth at all -
 // anyone who knew (or guessed) an investor's slug could read that investor's
@@ -148,7 +148,7 @@ router.get("/:slug/portfolio", requireAuth, requireRole("investor", "admin"), as
   }
 });
 
-// â”€â”€â”€ GET /api/investors/:slug/holdings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/investors/:slug/holdings ──────────────────────────────────────
 // Returns only this investor's held pools (for the "My Investments" cards).
 // Security fix 2026-09-21: same fix as /portfolio above - requireAuth plus a
 // same-investor-or-admin check.

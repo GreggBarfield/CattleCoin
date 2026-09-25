@@ -38,7 +38,6 @@ export default defineConfig({
         "src/pages/PoolDetail.tsx",
         "src/pages/CowDetail.tsx",
         "src/pages/InvestorDashboard.tsx",
-        "src/pages/FeedlotPage.tsx",
         "src/components/tables/**",
       ],
     },

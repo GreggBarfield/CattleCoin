@@ -8,7 +8,7 @@ import { Login } from "@/pages/Login";
 import { SignUp } from "@/pages/SignUp";
 import { WelcomePage } from "@/pages/WelcomePage";
 
-// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── helpers ────────────────────────────────────────────────────────────────────
 function mockFetchOk(body: unknown) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -32,7 +32,7 @@ function Wrapper({ children, initialPath = "/login" }: { children: React.ReactNo
   );
 }
 
-// â”€â”€ Login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Login ──────────────────────────────────────────────────────────────────────
 describe("Login page", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
@@ -90,7 +90,7 @@ describe("Login page", () => {
     const user: CurrentUser = { userId: "1", slug: "alice", role: "investor", email: "a@test.com", token: "test-token" };
     localStorage.setItem("cattlecoin_user", JSON.stringify(user));
 
-    // We just verify no crash â€” redirect happens via useNavigate
+    // We just verify no crash — redirect happens via useNavigate
     expect(() =>
       render(<Wrapper><Login /></Wrapper>)
     ).not.toThrow();
@@ -102,7 +102,7 @@ describe("Login page", () => {
   });
 });
 
-// â”€â”€ SignUp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SignUp ─────────────────────────────────────────────────────────────────────
 describe("SignUp page", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
@@ -119,7 +119,7 @@ describe("SignUp page", () => {
     fireEvent.change(screen.getByPlaceholderText(/e\.g\. johndoe/i), {
       target: { value: "testuser" },
     });
-    // Fill password fields â€” there are two â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢  inputs
+    // Fill password fields — there are two ••••••••  inputs
     const pwFields = screen.getAllByPlaceholderText("••••••••");
     fireEvent.change(pwFields[0], { target: { value: "abc123" } });
     fireEvent.change(pwFields[1], { target: { value: "different" } });

@@ -44,7 +44,7 @@ const displayRow = {
   listing_price: "10000", pool_id: "pool-1", contract_address: "",
 };
 
-// â”€â”€â”€ GET /api/investors/:slug/portfolio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/investors/:slug/portfolio ─────────────────────────────────────
 // Security fix 2026-09-21: now requires requireAuth + requireRole(investor,
 // admin), plus a same-slug-or-admin check. Every case below sends an
 // Authorization header for the investor whose own portfolio is being read
@@ -146,7 +146,7 @@ describe("GET /api/investors/:slug/portfolio", () => {
   test("avgRisk is null when investor holds no pools", async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
-      .mockResolvedValueOnce({ rows: [] }) // no herds â†’ pools.length === 0
+      .mockResolvedValueOnce({ rows: [] }) // no herds → pools.length === 0
       .mockResolvedValueOnce({ rows: [] }); // payouts
 
     const res = await request(app)
@@ -166,7 +166,7 @@ describe("GET /api/investors/:slug/portfolio", () => {
   });
 });
 
-// â”€â”€â”€ GET /api/investors/:slug/holdings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/investors/:slug/holdings ──────────────────────────────────────
 describe("GET /api/investors/:slug/holdings", () => {
   beforeEach(() => mockQuery.mockReset());
 

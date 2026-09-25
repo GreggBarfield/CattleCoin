@@ -30,12 +30,12 @@ const app = express();
 
 app.use(cors());
 
-// Stripe webhooks require the raw body â€” mount BEFORE express.json()
+// Stripe webhooks require the raw body — mount BEFORE express.json()
 app.use("/api/invest/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json());
 
-// â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/pools", poolsRoutes);
 app.use("/api/cows", cowsRoutes);
 // Note: the old unauthenticated GET /api/portfolio (no :slug) was removed
@@ -63,7 +63,7 @@ app.use("/api/fees", feesRoutes);
 app.use("/api/funds", fundsRoutes);
 app.use("/api/account", accountRoutes); // fix #10 (D8): my own account page, any role
 
-// â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Health check ──────────────────────────────────────────────────────────────
 app.get("/api/health", async (_req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -73,7 +73,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
-// â”€â”€ 404 fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 404 fallback ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
 });

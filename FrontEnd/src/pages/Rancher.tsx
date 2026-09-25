@@ -522,6 +522,14 @@ export function Rancher() {
     setCowQueue((q) => q.filter((c) => c._queueId !== queueId));
   }
 
+  // Re-running the CSV importer appends to cowQueue rather than replacing it
+  // (handleCsvComplete above), so this is the only way to clear a bad/partial
+  // import without resetting the whole wizard via handleReset.
+  function handleClearQueue() {
+    if (cattleRegistered) return;
+    setCowQueue([]);
+  }
+
   async function handleContinueToReview() {
     setCattleError(null);
 
@@ -876,10 +884,21 @@ export function Rancher() {
           {/* Queued cow cards */}
           {cowQueue.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">
-                Imported - {cowQueue.length}{" "}
-                {cowQueue.length === 1 ? "cow" : "cows"}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Imported - {cowQueue.length}{" "}
+                  {cowQueue.length === 1 ? "cow" : "cows"}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearQueue}
+                  disabled={cattleLocked}
+                >
+                  Clear all
+                </Button>
+              </div>
               {(() => {
                 const headCount = Number.parseInt(
                   herdSnapshot?.head_count ?? herd.head_count,

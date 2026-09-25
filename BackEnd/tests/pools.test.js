@@ -23,7 +23,7 @@ const herdRow = {
   total_raised: "6000", total_costs: "1500",
 };
 
-// â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools ───────────────────────────────────────────────────────────
 describe("GET /api/pools", () => {
   beforeEach(() => mockQuery.mockReset());
 
@@ -53,7 +53,7 @@ describe("GET /api/pools", () => {
 
   test("purchaseStatus is 'sold' when all investor-allocated tokens gone", async () => {
     const soldRow = { ...herdRow, tokens_sold: "12", investor_pct: "60", total_supply: "20" };
-    // investorAllocation = floor(20 * 60/100) = 12; tokensSold = 12 â†’ sold
+    // investorAllocation = floor(20 * 60/100) = 12; tokensSold = 12 → sold
     mockQuery
       .mockResolvedValueOnce({ rows: [soldRow] })
       .mockResolvedValueOnce({ rows: [] });
@@ -71,15 +71,40 @@ describe("GET /api/pools", () => {
   });
 });
 
-// â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools/:id ───────────────────────────────────────────────────────
 describe("GET /api/pools/:id", () => {
   beforeEach(() => mockQuery.mockReset());
 
-  test("404 when pool not found", async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [] });
+  test("404 with reason not_found when the herd never existed", async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })   // main POOL_QUERY miss
+      .mockResolvedValueOnce({ rows: [] });  // fallback status lookup also misses
     const res = await request(app).get("/api/pools/herd-999");
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/pool not found/i);
+    expect(res.body.reason).toBe("not_found");
+  });
+
+  // A herd disappears from POOL_QUERY (feedlot_status = 'listed' only) once
+  // it's sold/settled or still pending feedlot review - the fallback status
+  // lookup lets the response say which, instead of a bare 404.
+  test("404 with reason sold when the herd was sold and settled", async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ feedlot_status: "sold", herd_name: "Test Herd" }] });
+    const res = await request(app).get("/api/pools/herd-1");
+    expect(res.status).toBe(404);
+    expect(res.body.reason).toBe("sold");
+    expect(res.body.herdName).toBe("Test Herd");
+  });
+
+  test("404 with reason pending when the herd awaits feedlot review", async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ feedlot_status: "pending", herd_name: "Test Herd" }] });
+    const res = await request(app).get("/api/pools/herd-1");
+    expect(res.status).toBe(404);
+    expect(res.body.reason).toBe("pending");
   });
 
   test("200 returns pool detail with lifecycle events", async () => {
@@ -148,7 +173,7 @@ describe("GET /api/pools/:id", () => {
   });
 });
 
-// â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
 describe("GET /api/pools/:id/cows", () => {
   beforeEach(() => mockQuery.mockReset());
 

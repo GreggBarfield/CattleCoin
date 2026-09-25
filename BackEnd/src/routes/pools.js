@@ -3,7 +3,7 @@
 
 // const router = express.Router();
 
-// // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // function normalisePurchaseStatus(raw) {
 //   if (raw === "available" || raw === "pending" || raw === "sold") return raw;
@@ -60,7 +60,7 @@
 // //   };
 // // }
 
-// // â”€â”€â”€ base SELECT â€” uses LATERAL to avoid the GROUP BY / ORDER BY in aggregate bug
+// // ─── base SELECT — uses LATERAL to avoid the GROUP BY / ORDER BY in aggregate bug
 // // const POOL_QUERY = `
 // //   SELECT
 // //     h.herd_id,
@@ -122,7 +122,7 @@
 //     tokensRemaining,
 //     contractAddress: row.contract_address || "",
 //     tokenAmount,
-//     name: row.herd_name || row.herd_id,          // â† herd_name, never raw UUID
+//     name: row.herd_name || row.herd_id,          // ← herd_name, never raw UUID
 //     poolType: "herd",
 //     cohortLabel: row.cohort_label || null,
 //     geneticsLabel: BREED_LABEL[row.breed_code] ?? row.breed_code ?? "Unknown",
@@ -165,7 +165,7 @@
 // `;
 
 
-// // â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// // ─── GET /api/pools ───────────────────────────────────────────────────────────
 // router.get("/", async (req, res) => {
 //   try {
 //     // Check if ownership records exist
@@ -216,7 +216,7 @@
 //   }
 // });
 
-// // â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// // ─── GET /api/pools/:id ───────────────────────────────────────────────────────
 // router.get("/:id", async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -229,7 +229,7 @@
 
 //     const poolRow = shapePool(herdResult.rows[0]);
 
-//     // â”€â”€ lifecycle events: recent vaccinations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//     // ── lifecycle events: recent vaccinations ─────────────────────────────
 //     const eventsResult = await pool.query(
 //       `SELECT
 //          'ev-' || av.animal_vacc_id::text      AS id,
@@ -271,7 +271,7 @@
 //       }];
 //     }
 
-//     // â”€â”€ budget breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//     // ── budget breakdown ──────────────────────────────────────────────────
 //     const lp = poolRow.listingPrice;
 //     const budgetBreakdown = [
 //       { label: "Cattle Acquisition",   amountUsd: Math.round(lp * 0.36), category: "cost" },
@@ -279,7 +279,7 @@
 //       { label: "Expected Revenue",     amountUsd: Math.round(lp * 1.40), category: "revenue" },
 //     ];
 
-//     // â”€â”€ 30-day valuation history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//     // ── 30-day valuation history ──────────────────────────────────────────
 //     const valuationHistory30d = Array.from({ length: 31 }, (_, i) => {
 //       const d = new Date();
 //       d.setDate(d.getDate() - (30 - i));
@@ -303,7 +303,7 @@
 //   }
 // });
 
-// // â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// // ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
 // router.get("/:id/cows", async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -400,7 +400,7 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function normalisePurchaseStatus(raw) {
   if (raw === "available" || raw === "pending" || raw === "sold") return raw;
@@ -509,7 +509,7 @@ LEFT JOIN token_pools tp ON tp.herd_id = h.herd_id
 WHERE h.feedlot_status = 'listed'
 `;
 
-// â”€â”€â”€ GET /api/pools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools ───────────────────────────────────────────────────────────
 // Returns ALL herds so investors can browse the full marketplace.
 // tokenAmount is populated for any herd where an investor-role user owns tokens.
 router.get("/", async (req, res) => {
@@ -538,7 +538,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /api/pools/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools/:id ───────────────────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -546,7 +546,27 @@ router.get("/:id", async (req, res) => {
     const herdResult = await pool.query(`${POOL_QUERY} AND h.herd_id = $1`, [id]);
 
     if (herdResult.rows.length === 0) {
-      return res.status(404).json({ error: "Pool not found" });
+      // POOL_QUERY only surfaces herds with feedlot_status = 'listed', so a
+      // miss here doesn't mean the herd never existed - it may have been
+      // sold/settled (feedlot_status -> 'sold') or still be awaiting
+      // feedlot review ('pending'). Look the herd up directly so the
+      // frontend can show an accurate reason instead of a generic 404.
+      const statusResult = await pool.query(
+        "SELECT feedlot_status, herd_name FROM herds WHERE herd_id = $1",
+        [id]
+      );
+
+      if (statusResult.rows.length === 0) {
+        return res.status(404).json({ error: "Pool not found", reason: "not_found" });
+      }
+
+      const { feedlot_status, herd_name } = statusResult.rows[0];
+      const reason =
+        feedlot_status === "sold" ? "sold" :
+        feedlot_status === "pending" ? "pending" :
+        "unlisted";
+
+      return res.status(404).json({ error: "Pool not found", reason, herdName: herd_name });
     }
 
     // Token amount for this herd (aggregate investor ownership)
@@ -561,7 +581,7 @@ router.get("/:id", async (req, res) => {
 
     const poolRow = shapePool(herdResult.rows[0], tokenAmount);
 
-    // â”€â”€ lifecycle events: recent vaccinations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── lifecycle events: recent vaccinations ─────────────────────────────
     const eventsResult = await pool.query(
       `SELECT
          'ev-' || av.animal_vacc_id::text      AS id,
@@ -603,7 +623,7 @@ router.get("/:id", async (req, res) => {
       }];
     }
 
-    // â”€â”€ cost breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── cost breakdown ─────────────────────────────────────────────────────
     // Real logged costs by category, not a fabricated percentage of listing
     // price (see step-dashboard-real-numbers.md). Public/herd-level, same
     // category labels the My Money / Herd operations screens use, so a
@@ -637,7 +657,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /api/pools/:id/cows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /api/pools/:id/cows ──────────────────────────────────────────────────
 router.get("/:id/cows", async (req, res) => {
   try {
     const { id } = req.params;

@@ -102,6 +102,10 @@ function AppRoutes() {
           path="/rancher/stages"
           element={<Protected role="rancher"><StageUpdate /></Protected>}
         />
+        <Route
+          path="/rancher/carcass"
+          element={<Protected role="rancher"><CarcassEntry /></Protected>}
+        />
 
         {/* Feedlot portal */}
         {/* Fix #14: a feedlot runs its herds with the same screens a rancher

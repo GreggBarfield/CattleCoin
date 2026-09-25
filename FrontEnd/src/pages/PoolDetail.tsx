@@ -14,9 +14,22 @@ import { PipelineBar } from "@/components/pool/PipelineBar";
 import { CostBreakdown } from "@/components/pool/CostBreakdown";
 import { CowsTable, CowsTableSkeleton } from "@/components/tables/CowsTable";
 import { HerdMoneyCards } from "@/components/pool/HerdMoneyCards";
-import { getPoolById, getPoolCows, getInvestorHoldings } from "@/lib/api";
+import { getPoolById, getPoolCows, getInvestorHoldings, PoolNotFoundError } from "@/lib/api";
+import type { PoolNotFoundReason } from "@/lib/api";
 import type { PoolDetail as PoolDetailType, Cow, PurchaseStatus } from "@/lib/types";
 import { formatUsd, formatNumber } from "@/lib/utils";
+
+type NotFoundState = { reason: PoolNotFoundReason; herdName?: string };
+
+const NOT_FOUND_TEXT: Record<PoolNotFoundReason, (herdName?: string) => string> = {
+  sold: (herdName) =>
+    `${herdName ? `"${herdName}"` : "This herd"} has been sold and settled, and is no longer listed on the marketplace.`,
+  pending: (herdName) =>
+    `${herdName ? `"${herdName}"` : "This herd"} is awaiting feedlot review and isn't listed yet.`,
+  unlisted: (herdName) =>
+    `${herdName ? `"${herdName}"` : "This herd"} is not currently listed on the marketplace.`,
+  not_found: () => "",
+};
 
 const DOC_ICONS: Record<string, React.ElementType> = {
   certificate: Award,
@@ -47,7 +60,7 @@ export function PoolDetail() {
   const [cows, setCows] = useState<Cow[]>([]);
   const [loading, setLoading] = useState(true);
   const [cowsLoading, setCowsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [notFound, setNotFound] = useState<NotFoundState | null>(null);
   const [investorTokenAmount, setInvestorTokenAmount] = useState<number>(0);
 
   function handleRemoveCow(cowId: string) {
@@ -67,7 +80,7 @@ export function PoolDetail() {
     ])
       .then(([herdDetail, cowList, holdings]) => {
         if (!herdDetail) {
-          setNotFound(true);
+          setNotFound({ reason: "not_found" });
         } else {
           setData(herdDetail);
           setCows(cowList);
@@ -76,7 +89,13 @@ export function PoolDetail() {
           setInvestorTokenAmount(thisHerd?.tokenAmount ?? 0);
         }
       })
-      .catch(() => setNotFound(true))
+      .catch((err: unknown) => {
+        if (err instanceof PoolNotFoundError) {
+          setNotFound({ reason: err.reason, herdName: err.herdName });
+        } else {
+          setNotFound({ reason: "not_found" });
+        }
+      })
       .finally(() => {
         setLoading(false);
         setCowsLoading(false);
@@ -84,10 +103,15 @@ export function PoolDetail() {
   }, [id, resolvedSlug]);
 
   if (notFound) {
+    const title = notFound.reason === "not_found" ? "Herd not found" : "Herd no longer listed";
+    const message =
+      notFound.reason === "not_found"
+        ? `No herd with ID "${id}" exists.`
+        : NOT_FOUND_TEXT[notFound.reason](notFound.herdName);
     return (
       <div className="p-8 text-center space-y-3">
-        <h2 className="text-lg font-semibold">Herd not found</h2>
-        <p className="text-slate-500">No herd with ID "{id}" exists.</p>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="text-slate-500">{message}</p>
         <Link to={`/investor/${resolvedSlug}/holdings`}>
           <Button variant="outline">Back to Marketplace</Button>
         </Link>
@@ -95,7 +119,7 @@ export function PoolDetail() {
     );
   }
 
-  // â”€â”€ Derived values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Derived values ──────────────────────────────────────────────────────────
   const pool = data?.pool;
   const totalSupply = pool?.totalSupply ?? 1;
 
@@ -161,7 +185,7 @@ export function PoolDetail() {
         </div>
       ) : null}
 
-      {/* KPI Cards â€” all investor-specific and labeled */}
+      {/* KPI Cards — all investor-specific and labeled */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <><KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton /></>
@@ -183,7 +207,7 @@ export function PoolDetail() {
               trend="neutral"
             />
 
-            {/* 3. THIS investor's tokens â€” not aggregate */}
+            {/* 3. THIS investor's tokens — not aggregate */}
             <KpiCard
               label="Your Tokens"
               value={

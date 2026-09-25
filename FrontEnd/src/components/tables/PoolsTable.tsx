@@ -28,7 +28,7 @@ interface PoolsTableProps {
   sortDir: "asc" | "desc";
   onSort: (key: PoolSortKey) => void;
   compact?: boolean;
-  /** Investor slug â€” used to build the correct /investor/:slug/holdings/:id URL */
+  /** Investor slug — used to build the correct /investor/:slug/holdings/:id URL */
   slug?: string;
 }
 
