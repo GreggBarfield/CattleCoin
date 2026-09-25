@@ -623,11 +623,12 @@ router.get("/:id", async (req, res) => {
       amountUsd: Math.round(parseFloat(r.amount) || 0),
     }));
 
-    const documents = [
-      { title: "Certificate of Origin",     type: "certificate", url: "#" },
-      { title: "Health Inspection Report",  type: "inspection",  url: "#" },
-      { title: "Ownership Transfer Record", type: "transfer",    url: "#" },
-    ];
+    // I5 (2026-09-25): these used to be hardcoded placeholder rows with
+    // href="#" - not real documents, just fake links an investor could click
+    // and get nowhere. Until real per-herd documents exist, send none; the
+    // frontend's `data.documents.length > 0` guard already hides the whole
+    // card when this is empty.
+    const documents = [];
 
     res.json({ pool: poolRow, lifecycle, costBreakdown, documents });
   } catch (err) {

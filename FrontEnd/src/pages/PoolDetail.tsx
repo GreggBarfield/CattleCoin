@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ChevronRight, FileText, ShieldCheck, ClipboardList,
-  ArrowLeftRight, Award, Shield, PlusCircle, ExternalLink, TrendingUp,
+  ArrowLeftRight, Award, Shield, ExternalLink, TrendingUp,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -281,9 +281,6 @@ export function PoolDetail() {
           <CardTitle className="text-base">
             Individual Cattle Records ({cowsLoading ? "..." : cows.length} head)
           </CardTitle>
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <PlusCircle className="h-4 w-4" /> Add Cattle
-          </Button>
         </CardHeader>
         <CardContent className="p-0">
           {cowsLoading ? (

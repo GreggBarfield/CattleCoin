@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { StageBadge } from "@/components/common/StageBadge";
 import { VerifiedBadge } from "@/components/common/VerifiedBadge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, formatUsd, formatDate, formatWeight } from "@/lib/utils";
+import { cn, formatDate, formatWeight } from "@/lib/utils";
 import type { Cow, CowHealth, SexCode } from "@/lib/types";
 import { SEX_LABELS } from "@/lib/types";
 
@@ -144,12 +144,6 @@ export function CowsTable({ cows, onRemove }: CowsTableProps) {
             <SortHeader label="Days" field="daysInStage" />
           </TableHead>
           <TableHead>
-            <SortHeader label="Investment to Date" field="costToDateUsd" />
-          </TableHead>
-          <TableHead>
-            <SortHeader label="Total Value" field="totalValue" />
-          </TableHead>
-          <TableHead>
             <SortHeader label="Enrolled" field="createdAt" />
           </TableHead>
           {onRemove && <TableHead />}
@@ -186,12 +180,6 @@ export function CowsTable({ cows, onRemove }: CowsTableProps) {
               </Badge>
             </TableCell>
             <TableCell className="text-sm">{cow.daysInStage}d</TableCell>
-            <TableCell className="text-sm font-medium">
-              {formatUsd(cow.costToDateUsd)}
-            </TableCell>
-            <TableCell className="text-sm font-medium">
-              {formatUsd(cow.totalValue)}
-            </TableCell>
             <TableCell className="text-xs text-muted-foreground">
               {formatDate(cow.createdAt)}
             </TableCell>
