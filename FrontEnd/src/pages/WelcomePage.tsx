@@ -3,6 +3,15 @@ import { useNavigate, Link } from "react-router-dom";
 import { ArrowRight, Beef, Truck, ShieldCheck, FileCheck2, Umbrella } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, homePathForRole } from "@/context/AuthContext";
+import {
+  ProgressItem,
+  ProgressItemContent,
+  ProgressItemDescription,
+  ProgressItemHeader,
+  ProgressItemIndicator,
+  ProgressItemSeparator,
+  ProgressItemTitle,
+} from "@/components/shadcncraft/pro-application/progress-item-1";
 
 export function WelcomePage() {
   const { currentUser } = useAuth();
@@ -84,37 +93,46 @@ export function WelcomePage() {
                 From the pasture to a payout, in three steps.
               </h2>
             </div>
-            <div className="mt-10 grid gap-6 text-left md:grid-cols-3">
-              <div className="rounded-2xl border border-border bg-card p-7">
-                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  1
-                </div>
-                <h3 className="text-lg font-semibold">A producer lists a herd</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  A rancher or feedyard opens capital raising directly to
-                  investors, choosing retained ownership or an outright sale.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-7">
-                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  2
-                </div>
-                <h3 className="text-lg font-semibold">Investors buy fractional shares</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Each token represents a real stake in the herd. Ownership is
-                  recorded on-chain; the herd's progress shows in a statement.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-7">
-                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  3
-                </div>
-                <h3 className="text-lg font-semibold">Payout at the rail</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  When cattle sell, proceeds settle back to the producer and
-                  investors, weighted by carcass grade at slaughter.
-                </p>
-              </div>
+            <div className="mt-10 flex flex-col gap-10 text-left sm:flex-row sm:gap-6">
+              <ProgressItem>
+                <ProgressItemHeader>
+                  <ProgressItemIndicator>1</ProgressItemIndicator>
+                  <ProgressItemSeparator />
+                </ProgressItemHeader>
+                <ProgressItemContent>
+                  <ProgressItemTitle>A producer lists a herd</ProgressItemTitle>
+                  <ProgressItemDescription>
+                    A rancher or feedyard opens capital raising directly to
+                    investors, choosing retained ownership or an outright sale.
+                  </ProgressItemDescription>
+                </ProgressItemContent>
+              </ProgressItem>
+              <ProgressItem>
+                <ProgressItemHeader>
+                  <ProgressItemIndicator>2</ProgressItemIndicator>
+                  <ProgressItemSeparator />
+                </ProgressItemHeader>
+                <ProgressItemContent>
+                  <ProgressItemTitle>Investors buy fractional shares</ProgressItemTitle>
+                  <ProgressItemDescription>
+                    Each token represents a real stake in the herd. Ownership
+                    is recorded on-chain; the herd's progress shows in a
+                    statement.
+                  </ProgressItemDescription>
+                </ProgressItemContent>
+              </ProgressItem>
+              <ProgressItem>
+                <ProgressItemHeader>
+                  <ProgressItemIndicator>3</ProgressItemIndicator>
+                </ProgressItemHeader>
+                <ProgressItemContent>
+                  <ProgressItemTitle>Payout at the rail</ProgressItemTitle>
+                  <ProgressItemDescription>
+                    When cattle sell, proceeds settle back to the producer and
+                    investors, weighted by carcass grade at slaughter.
+                  </ProgressItemDescription>
+                </ProgressItemContent>
+              </ProgressItem>
             </div>
           </div>
         </section>
