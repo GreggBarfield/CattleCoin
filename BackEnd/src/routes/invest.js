@@ -1,7 +1,8 @@
-﻿import express from "express";
+import express from "express";
 import Stripe from "stripe";
 import pool from "../db.js";
 import { ensureHerdValueCost } from "../lib/costs.js";
+import { deliverTokens } from "../lib/chainDelivery.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 
 const router = express.Router();
@@ -103,10 +104,13 @@ async function recordInvestment({ herdId, investorSlug, tokensToBuy, paymentInte
       DO UPDATE SET token_amount = ownership.token_amount + EXCLUDED.token_amount
     `, [userId, hr.pool_id, tokensToBuy]);
 
-    await client.query(`
-      INSERT INTO transactions (user_id, pool_id, type, amount, status)
-      VALUES ($1, $2, 'buy'::transaction_type, $3, 'confirmed')
+    // chain_status 'pending' = the tokens still have to be sent to the investor's wallet
+    const txRow = await client.query(`
+      INSERT INTO transactions (user_id, pool_id, type, amount, status, chain_status)
+      VALUES ($1, $2, 'buy'::transaction_type, $3, 'confirmed', 'pending')
+      RETURNING transaction_id
     `, [userId, hr.pool_id, tokensToBuy]);
+    const transactionId = txRow.rows[0].transaction_id;
 
     const newTokensSold = parseInt(hr.tokens_sold, 10) + tokensToBuy;
     const newStatus = newTokensSold >= investorAllocation ? "sold" : hr.purchase_status;
@@ -116,7 +120,7 @@ async function recordInvestment({ herdId, investorSlug, tokensToBuy, paymentInte
     );
 
     await client.query("COMMIT");
-    return { tokensRemaining: investorAllocation - newTokensSold, newStatus };
+    return { tokensRemaining: investorAllocation - newTokensSold, newStatus, transactionId };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -287,6 +291,10 @@ router.post("/confirm", requireAuth, requireRole("investor"), async (req, res) =
     // Record the investment in our DB
     const result = await recordInvestment({ herdId, investorSlug, tokensToBuy: tokens, paymentIntentId: intent.id, amountCents: intent.amount_received ?? intent.amount });
 
+    // send the tokens to the investor's wallet in the background. The payment is already
+    // recorded, so a blockchain problem never fails the purchase (deliverTokens never throws).
+    if (result.transactionId) deliverTokens(pool, result.transactionId);
+
     res.json({
       success: true,
       message: `Successfully purchased ${tokens} token(s) in ${intent.metadata.herdName}.`,
@@ -327,13 +335,14 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
 
     if (herdId && investorSlug && tokensToBuy) {
       try {
-        await recordInvestment({
+        const recorded = await recordInvestment({
           herdId,
           investorSlug,
           tokensToBuy: parseInt(tokensToBuy, 10),
           paymentIntentId: intent.id,
           amountCents: intent.amount_received ?? intent.amount,
         });
+        if (recorded.transactionId) deliverTokens(pool, recorded.transactionId);
         console.log(`Webhook: recorded ${tokensToBuy} tokens for ${investorSlug} in ${herdId}`);
       } catch (err) {
         // Log but don't fail — Stripe will retry if we return non-2xx

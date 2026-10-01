@@ -80,3 +80,52 @@ export async function deployHerdToken({ herdId, herdName, breedCode, totalSupply
     symbol,
   };
 }
+// ── Sending tokens to investors ─────────────────────────────────────────────
+// Only one send runs at a time. All sends come from the same platform wallet,
+// and two at once would collide on the wallet's transaction counter.
+let sendQueue = Promise.resolve();
+
+const ERC20_ABI_SLICE = [
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+];
+
+// Sends use their own connection with ethers' short-term answer cache turned off.
+// With the cache on, two sends a fraction of a second apart can be given the same
+// transaction number by the platform wallet, and the second one fails.
+let sender = null;
+function getSender() {
+  if (sender) return sender;
+  getSigner(); // same "Blockchain not configured" error as everywhere else
+  const p = new ethers.JsonRpcProvider(AMOY_RPC_URL, undefined, { cacheTimeout: -1 });
+  sender = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, p);
+  return sender;
+}
+
+// Sends `tokens` whole tokens of one herd's contract from the platform wallet
+// to an investor's wallet. Resolves with the transaction hash once confirmed.
+export function transferHerdTokens({ contractAddress, toAddress, tokens }) {
+  const run = async () => {
+    const s = getSender();
+    // A send to an address with no contract behind it "succeeds" on-chain but moves nothing,
+    // for example when the database holds an address from a different network than this one.
+    const code = await s.provider.getCode(contractAddress);
+    if (!code || code === "0x") {
+      throw new Error(`No token contract at ${contractAddress} on this network`);
+    }
+    const token = new ethers.Contract(contractAddress, ERC20_ABI_SLICE, s);
+    const tx = await token.transfer(toAddress, ethers.parseUnits(String(tokens), 18));
+    await tx.wait();
+    return tx.hash;
+  };
+  const result = sendQueue.then(run, run);
+  sendQueue = result.catch(() => {});
+  return result;
+}
+
+// Whole-token balance of one wallet in one herd's contract (for display/checks).
+export async function getHerdTokenBalance({ contractAddress, address }) {
+  const s = getSigner();
+  const token = new ethers.Contract(contractAddress, ERC20_ABI_SLICE, s);
+  return ethers.formatUnits(await token.balanceOf(address), 18);
+}

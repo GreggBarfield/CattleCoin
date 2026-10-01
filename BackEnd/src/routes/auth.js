@@ -1,7 +1,8 @@
-﻿import express from "express";
+import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pool from "../db.js";
+import { ensureInvestorWallet } from "../lib/wallets.js";
 
 const router = express.Router();
 
@@ -108,6 +109,16 @@ router.post("/signup", async (req, res) => {
 
     const user = result.rows[0];
     const token = signToken(user);
+
+    // every investor gets a platform-held wallet right away (producers do not need one).
+    // If this fails the signup still works; the wallet is created at their first purchase.
+    if (user.role === "investor") {
+      try {
+        await ensureInvestorWallet(pool, user.user_id);
+      } catch (walletErr) {
+        console.error("Wallet creation at signup failed (will retry at first purchase):", walletErr.message);
+      }
+    }
 
     res.status(201).json({
       token,
