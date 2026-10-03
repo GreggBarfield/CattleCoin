@@ -19,7 +19,17 @@ import { getHerdForInvest } from "@/lib/api";
 import type { HerdInvestInfo } from "@/lib/types";
 import { formatUsd } from "@/lib/utils";
 import { price } from "@/lib/marketplace";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, getAuthToken } from "@/context/AuthContext";
+
+// Both payment calls need the login token. Without it the server answers
+// "Missing or invalid Authorization header" and the Pay button never works.
+function authedJsonHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 // Stripe singleton — initialised once outside render
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
@@ -65,7 +75,7 @@ function PaymentForm({ herd, investorSlug, tokens, onSuccess }: PaymentFormProps
       // Step 1 — ask backend to create a PaymentIntent
       const intentRes = await fetch("/api/invest/create-payment-intent", {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authedJsonHeaders(),
         body:    JSON.stringify({ herdId: herd.herdId, investorSlug, tokensToBuy: tokens }),
       });
       if (!intentRes.ok) {
@@ -89,7 +99,7 @@ function PaymentForm({ herd, investorSlug, tokens, onSuccess }: PaymentFormProps
       // Step 3 — tell backend to record the investment (verifies with Stripe)
       const confirmRes = await fetch("/api/invest/confirm", {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authedJsonHeaders(),
         body:    JSON.stringify({ paymentIntentId: paymentIntent.id }),
       });
       if (!confirmRes.ok) {
