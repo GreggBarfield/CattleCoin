@@ -53,8 +53,8 @@ function makeSymbol(breedCode, herdUuid) {
 // custodial wallet (this same signer). Individual investor allocations stay
 // tracked off-chain in the `ownership` table for now, same as before this
 // pass - this only gets the supply itself on-chain.
-export async function deployHerdToken({ herdId, herdName, breedCode, totalSupply }) {
-  const signer = getSigner();
+export async function deployHerdToken({ herdId, herdName, breedCode, totalSupply, signer: signerOverride }) {
+  const signer = signerOverride ?? getSigner();
 
   const name = herdName ? `CattleCoin - ${herdName}` : `CattleCoin Herd ${herdId}`;
   const symbol = makeSymbol(breedCode, herdId);
@@ -118,6 +118,16 @@ export function transferHerdTokens({ contractAddress, toAddress, tokens }) {
     await tx.wait();
     return tx.hash;
   };
+  const result = sendQueue.then(run, run);
+  sendQueue = result.catch(() => {});
+  return result;
+}
+
+// Same as deployHerdToken, but waits its turn in the send queue and uses the
+// no-cache connection, so a deploy can never collide with a token send that is
+// happening at the same moment from the same platform wallet.
+export function deployHerdTokenQueued(params) {
+  const run = () => deployHerdToken({ ...params, signer: getSender() });
   const result = sendQueue.then(run, run);
   sendQueue = result.catch(() => {});
   return result;
