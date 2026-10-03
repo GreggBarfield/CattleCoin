@@ -7,6 +7,7 @@ import { StageBadge } from "@/components/common/StageBadge";
 import { VerifiedBadge } from "@/components/common/VerifiedBadge";
 import { PoolsTable, PoolsTableSkeleton } from "@/components/tables/PoolsTable";
 import { MyInvestments } from "@/components/common/MyInvestments";
+import { WalletPanel } from "@/components/common/WalletPanel";
 import type { PoolSortKey } from "@/components/tables/PoolsTable";
 import { getInvestorPortfolio, getInvestorHoldings } from "@/lib/api";
 import type { PortfolioSummary, Pool } from "@/lib/types";
@@ -119,6 +120,9 @@ export function InvestorDashboard() {
           </>
         ) : null}
       </div>
+
+      {/* My Wallet - address, network, tokens delivered and held on-chain */}
+      <WalletPanel />
 
       {/* My Investments — clickable cards, each navigates to /investor/:slug/holdings/:id */}
       <MyInvestments pools={holdings} loading={loading} slug={resolvedSlug} />
