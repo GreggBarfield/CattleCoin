@@ -1,4 +1,5 @@
 import { HttpError, toCents, money } from "./routeHelpers.js";
+import { effectiveStatus } from "./costVerification.js";
 
 // Shared rules for herd costs (routes/expenses.js) and LRP records (routes/lrp.js).
 //
@@ -125,7 +126,7 @@ export function costChangeRule({ isAdmin, isOwner, locked, saleState, expense })
   return { ok: true, reasonRequired: false };
 }
 
-export function shapeExpense(r, rule) {
+export function shapeExpense(r, rule, evidence) {
   return {
     expenseId:        r.expense_id,
     herdId:           r.herd_id,
@@ -138,6 +139,16 @@ export function shapeExpense(r, rule) {
     status:           r.status,
     lrpPolicyId:      r.lrp_policy_id ?? null,
     createdBy:        r.created_by_slug ?? null,
+    // Cost verification (migration 019). documents, signals and openDisputes are
+    // only present when the caller loaded the evidence (loadEvidence).
+    vendorName:         r.vendor_name ?? null,
+    invoiceNumber:      r.invoice_number ?? null,
+    verificationStatus: effectiveStatus(r),
+    verifiedAt:         r.verified_at ?? null,
+    verificationNote:   r.verification_note ?? null,
+    documents:          evidence ? evidence.documents : undefined,
+    signals:            evidence ? evidence.signals : undefined,
+    openDisputes:       evidence ? evidence.openDisputes : undefined,
     createdAt:        r.created_at,
     voidedAt:         r.voided_at ?? null,
     voidReason:       r.void_reason ?? null,
@@ -150,6 +161,7 @@ export const EXPENSE_SELECT = `
   e.expense_id, e.herd_id, e.category, e.description, e.amount,
   e.accrued_date::text AS accrued_date, e.billing_direction, e.source, e.status,
   e.lrp_policy_id, e.created_at, e.voided_at, e.void_reason,
+  e.vendor_name, e.invoice_number, e.verification_status, e.verified_at, e.verification_note,
   cu.slug AS created_by_slug
 `;
 export const EXPENSE_FROM = `FROM herd_expenses e LEFT JOIN users cu ON cu.user_id = e.created_by_user_id`;
@@ -158,6 +170,8 @@ export const EXPENSE_FROM = `FROM herd_expenses e LEFT JOIN users cu ON cu.user_
 export const expenseSnapshot = (r) => ({
   category: r.category, description: r.description ?? null, amount: Number(r.amount),
   accruedDate: r.accrued_date, status: r.status,
+  vendorName: r.vendor_name ?? null, invoiceNumber: r.invoice_number ?? null,
+  verificationStatus: effectiveStatus(r),
 });
 
 export async function writeExpenseHistory(client, { expenseId, herdId, action, userId, reason, before, after }) {

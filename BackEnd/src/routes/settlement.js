@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { HttpError, isUuid, toCents, dollars, money, withTransaction, sendError } from "../lib/routeHelpers.js";
 import { loadHerdTerms, pctToBps, feeOnCents, getFundsPosition } from "../lib/feeTerms.js";
 import { transferHerdToBuyer } from "../lib/transfer.js";
+import { getCostReview, assertCostReviewAllows } from "../lib/costVerification.js";
 
 const router = express.Router();
 
@@ -833,6 +834,14 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
         );
       }
 
+      // Cost review (migration 019): an open investor dispute blocks the approval;
+      // flagged costs and reused invoices must be acknowledged by the admin.
+      const costReview = await getCostReview(client, sale.herd_id);
+      assertCostReviewAllows(costReview, req.body?.acknowledgeCostWarnings === true);
+      const decisionNote = costReview.needsAcknowledgement
+        ? [note, "Cost warnings acknowledged by admin."].filter(Boolean).join(" ").slice(0, 255)
+        : note;
+
       const breakdown = await computeSettlement(client, {
         herdId: sale.herd_id,
         ownerId: sale.seller_user_id,
@@ -872,7 +881,7 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
                 platform_fees_total = $6, fee_terms_snapshot = $7
           WHERE sale_id = $1`,
         [
-          saleId, money(breakdown.expensesCents), money(breakdown.netCents), adminId, note,
+          saleId, money(breakdown.expensesCents), money(breakdown.netCents), adminId, decisionNote,
           breakdown.feeTermsApplied ? money(breakdown.platformCents) : null,
           breakdown.feeSnapshot ? JSON.stringify(breakdown.feeSnapshot) : null,
         ]
@@ -882,7 +891,7 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
       const transfer = await transferHerdToBuyer(client, saleId);
 
       const saleFull = await client.query(`SELECT ${SALE_SELECT} ${SALE_FROM} WHERE s.sale_id = $1`, [saleId]);
-      return { sale: saleFull.rows[0], breakdown, transfer };
+      return { sale: saleFull.rows[0], breakdown, transfer, costReview };
     });
 
     return res.json({
@@ -892,6 +901,7 @@ router.post("/sales/:saleId/approve", requireAuth, requireRole("admin"), async (
       sale: shapeSale(out.sale),
       settlement: shapeBreakdown(out.breakdown),
       transfer: out.transfer,
+      costReview: out.costReview,
     });
   } catch (err) {
     return sendError(res, "POST /api/settlement/sales/:saleId/approve", err);

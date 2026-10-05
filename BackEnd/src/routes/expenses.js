@@ -7,6 +7,7 @@ import {
   loadHerd, herdHasInvestors, herdSaleState, getViewerAccess, costChangeRule,
   shapeExpense, EXPENSE_SELECT, EXPENSE_FROM, expenseSnapshot, writeExpenseHistory,
 } from "../lib/costs.js";
+import { loadEvidence } from "../lib/costVerification.js";
 
 const router = express.Router();
 
@@ -25,6 +26,8 @@ const router = express.Router();
 // typed in here - see lib/transfer.js and routes/lrp.js.
 
 const descOf = (v) => (v === undefined || v === null ? null : String(v).trim().slice(0, 255) || null);
+// vendor name (120) and invoice number (60), the same trimming as a description
+const textOf = (v, max) => (v === undefined || v === null ? null : String(v).trim().slice(0, max) || null);
 
 async function loadExpense(db, expenseId, lock = false) {
   const r = await db.query(
@@ -55,13 +58,14 @@ router.get("/herds/:herdId", requireAuth, async (req, res) => {
 
     const byCategory = {};
     let totalCents = 0;
+    const evidence = await loadEvidence(pool, rows.rows);
     const expenses = rows.rows.map((r) => {
       if (r.status === "active") {
         const c = Math.round(Number(r.amount) * 100);
         totalCents += c;
         byCategory[r.category] = (byCategory[r.category] ?? 0) + c;
       }
-      return shapeExpense(r, costChangeRule({ ...who, locked, saleState, expense: r }));
+      return shapeExpense(r, costChangeRule({ ...who, locked, saleState, expense: r }), evidence.get(r.expense_id));
     });
     for (const k of Object.keys(byCategory)) byCategory[k] = dollars(byCategory[k]);
 
@@ -109,10 +113,12 @@ router.post("/herds/:herdId", requireAuth, requireRole(...OWNER_ROLES), async (r
       }
       const ins = await client.query(
         `INSERT INTO herd_expenses
-           (herd_id, category, description, amount, accrued_date, billing_direction, source, created_by_user_id)
-         VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE), 'self', 'manual', $6)
+           (herd_id, category, description, amount, accrued_date, billing_direction, source, created_by_user_id,
+            vendor_name, invoice_number)
+         VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE), 'self', 'manual', $6, $7, $8)
          RETURNING expense_id`,
-        [herdId, category, descOf(body.description), money(cents), accrued, req.user.userId]
+        [herdId, category, descOf(body.description), money(cents), accrued, req.user.userId,
+         textOf(body.vendorName, 120), textOf(body.invoiceNumber, 60)]
       );
       const row = await loadExpense(client, ins.rows[0].expense_id);
       await writeExpenseHistory(client, {
@@ -121,7 +127,8 @@ router.post("/herds/:herdId", requireAuth, requireRole(...OWNER_ROLES), async (r
       });
       return row;
     });
-    return res.status(201).json({ message: "Cost logged.", expense: shapeExpense(out) });
+    const ev = await loadEvidence(pool, [out]);
+    return res.status(201).json({ message: "Cost logged.", expense: shapeExpense(out, null, ev.get(out.expense_id)) });
   } catch (err) {
     return sendError(res, "POST /api/expenses/herds/:herdId", err);
   }
@@ -186,6 +193,22 @@ router.patch("/:expenseId", requireAuth, async (req, res) => {
         if (!d) throw new HttpError(400, "accruedDate cannot be empty.");
         if (d !== expense.accrued_date) add("accrued_date", d, "::date");
       }
+      if (body.vendorName !== undefined) {
+        const v = textOf(body.vendorName, 120);
+        if (v !== (expense.vendor_name ?? null)) add("vendor_name", v);
+      }
+      if (body.invoiceNumber !== undefined) {
+        const v = textOf(body.invoiceNumber, 60);
+        if (v !== (expense.invoice_number ?? null)) add("invoice_number", v);
+      }
+      // Changing what was paid, or for what, no longer matches what an admin checked,
+      // so a verified cost goes back to documented / unverified.
+      const paidChanged = sets.some((s) => s.startsWith("amount ") || s.startsWith("category "));
+      if (paidChanged && expense.source === "manual" && expense.verification_status === "verified") {
+        const docs = await client.query("SELECT 1 FROM herd_expense_documents WHERE expense_id = $1 LIMIT 1", [expenseId]);
+        sets.push(`verification_status = '${docs.rowCount > 0 ? "documented" : "unverified"}'`);
+        sets.push("verified_by_user_id = NULL", "verified_at = NULL", "verification_note = NULL");
+      }
       if (sets.length === 0) throw new HttpError(400, "Nothing to change. Send category, amount, description or accruedDate.");
 
       await client.query(`UPDATE herd_expenses SET ${sets.join(", ")}, updated_at = NOW() WHERE expense_id = $1`, vals);
@@ -196,7 +219,8 @@ router.patch("/:expenseId", requireAuth, async (req, res) => {
       });
       return after;
     });
-    return res.json({ message: "Cost updated.", expense: shapeExpense(out) });
+    const ev = await loadEvidence(pool, [out]);
+    return res.json({ message: "Cost updated.", expense: shapeExpense(out, null, ev.get(out.expense_id)) });
   } catch (err) {
     return sendError(res, "PATCH /api/expenses/:expenseId", err);
   }
@@ -224,7 +248,8 @@ router.post("/:expenseId/void", requireAuth, async (req, res) => {
       });
       return after;
     });
-    return res.json({ message: "Cost voided. It is kept on record but no longer counts.", expense: shapeExpense(out) });
+    const ev = await loadEvidence(pool, [out]);
+    return res.json({ message: "Cost voided. It is kept on record but no longer counts.", expense: shapeExpense(out, null, ev.get(out.expense_id)) });
   } catch (err) {
     return sendError(res, "POST /api/expenses/:expenseId/void", err);
   }

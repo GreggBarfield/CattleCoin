@@ -17,6 +17,8 @@ import cattleRoutes from "./routes/cattle.js";
 import blockchainRoutes from "./routes/blockchain.js";
 import settlementRoutes from "./routes/settlement.js";
 import expensesRoutes from "./routes/expenses.js";
+import costReviewRoutes from "./routes/costReview.js";
+import producersRoutes from "./routes/producers.js";
 import lrpRoutes from "./routes/lrp.js";
 import myMoneyRoutes from "./routes/myMoney.js";
 import myWalletRoutes from "./routes/myWallet.js";
@@ -57,6 +59,8 @@ app.use("/api/carcass", carcassRoutes); // per-animal carcass grade records (rec
 app.use("/api/blockchain", blockchainRoutes);
 app.use("/api/settlement", settlementRoutes);
 app.use("/api/expenses", expensesRoutes);
+app.use("/api/cost-review", costReviewRoutes); // cost verification: invoices, disputes, admin checks, investor alerts
+app.use("/api/producers", producersRoutes); // a producer's track record, built from the ledger
 app.use("/api/lrp", lrpRoutes);
 app.use("/api/my-money", myMoneyRoutes); // investor: what I paid in, what I am owed
 app.use("/api/my-wallet", myWalletRoutes); // investor: my wallet address, tokens delivered, on-chain balance
