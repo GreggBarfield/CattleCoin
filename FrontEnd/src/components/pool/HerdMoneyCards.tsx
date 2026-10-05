@@ -12,6 +12,9 @@ import {
   STATE_LABELS,
 } from "@/lib/money";
 import type { MoneyHerd, HerdCosts, HerdLrpPolicy } from "@/lib/money";
+import { getDisputes, markCostsSeen, type Dispute } from "@/lib/costReview";
+import { StatusBadge, InvoiceLinks, SignalList } from "@/components/costs/CostEvidence";
+import { DisputeForm } from "@/components/costs/DisputeParts";
 
 // The money side of one herd, for an investor who holds it: what they paid in,
 // what the herd has cost so far, and any price-protection (LRP) policy on file.
@@ -21,6 +24,9 @@ export function HerdMoneyCards({ herdId, slug }: { herdId: string; slug: string 
   const [mine, setMine] = useState<MoneyHerd | null>(null);
   const [costs, setCosts] = useState<HerdCosts | null>(null);
   const [policies, setPolicies] = useState<HerdLrpPolicy[]>([]);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -33,10 +39,19 @@ export function HerdMoneyCards({ herdId, slug }: { herdId: string; slug: string 
     getHerdLrp(herdId)
       .then((l) => alive && setPolicies(l.policies))
       .catch(() => alive && setPolicies([]));
+    getDisputes(herdId)
+      .then((r) => alive && setDisputes(r.disputes))
+      .catch(() => alive && setDisputes([]));
     return () => {
       alive = false;
     };
-  }, [herdId]);
+  }, [herdId, reload]);
+
+  // Looking at the costs clears this herd's "new costs" alert. Only investors
+  // in the herd can do this; for anyone else the server refuses and nothing shows.
+  useEffect(() => {
+    if (mine) markCostsSeen(herdId).catch(() => undefined);
+  }, [herdId, mine]);
 
   if (!mine && !costs && policies.length === 0) return null;
 
@@ -115,16 +130,48 @@ export function HerdMoneyCards({ herdId, slug }: { herdId: string; slug: string 
                 <summary className="cursor-pointer text-xs text-blue-600">Every cost, by date</summary>
                 <ul className="mt-2 divide-y text-xs">
                   {activeCosts.map((e) => (
-                    <li key={e.expenseId} className="flex justify-between gap-3 py-1">
-                      <span>
-                        {shortDate(e.accruedDate)} - {costLabel(e.category)}
-                        {e.description ? ` (${e.description})` : ""}
-                      </span>
-                      <span>{usd(e.amount)}</span>
+                    <li key={e.expenseId} className="py-1.5" data-testid="investor-cost">
+                      <div className="flex justify-between gap-3">
+                        <span>
+                          {shortDate(e.accruedDate)} - {costLabel(e.category)}
+                          {e.description ? ` (${e.description})` : ""}
+                        </span>
+                        <span>{usd(e.amount)}</span>
+                      </div>
+                      {e.source === "manual" && (
+                        <div className="mt-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge status={e.verificationStatus} />
+                            {(e.vendorName || e.invoiceNumber) && (
+                              <span className="text-slate-500">
+                                {e.vendorName ?? ""}{e.vendorName && e.invoiceNumber ? ", " : ""}{e.invoiceNumber ? `invoice ${e.invoiceNumber}` : ""}
+                              </span>
+                            )}
+                          </div>
+                          <SignalList signals={e.signals} />
+                          <InvoiceLinks documents={e.documents} />
+                          {mine && mine.sale?.status !== "approved" && (
+                            <DisputeForm expenseId={e.expenseId} onDone={(m) => { setNote(m); setReload((n) => n + 1); }} />
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
               </details>
+            )}
+            {note && <p className="mt-2 text-xs text-green-700" role="status">{note}</p>}
+            {disputes.some((d) => d.raisedByMe) && (
+              <div className="mt-2 space-y-1 text-xs" data-testid="my-disputes">
+                <p className="font-medium">Your questions</p>
+                {disputes.filter((d) => d.raisedByMe).map((d) => (
+                  <p key={d.disputeId} className="text-slate-600">
+                    {costLabel(d.cost.category)} {usd(d.cost.amount)}: {d.status === "open" ? "waiting for review" : d.status === "upheld" ? "CattleCoin agreed" : "CattleCoin did not agree"}
+                    {d.ownerResponse ? ` - owner replied: ${d.ownerResponse}` : ""}
+                    {d.resolutionNote ? ` - ruling: ${d.resolutionNote}` : ""}
+                  </p>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { getHerdFunds, type HerdFunds } from "@/lib/rancherHerds";
+import { getDisputes, type Dispute } from "@/lib/costReview";
+import { StatusBadge, InvoiceLinks, SignalList, InvoiceUpload } from "@/components/costs/CostEvidence";
+import { OwnerDisputes } from "@/components/costs/DisputeParts";
 import {
   getCosts, postCost, patchCost, voidCost, checkCost, COST_CATEGORIES, CATEGORY_LABEL, SOURCE_LABEL,
   getLrp, postLrp, putLrp, checkLrp, lrpChanges, lrpToInput, EMPTY_LRP, ENDORSEMENT_LABEL,
@@ -52,7 +55,7 @@ type PanelData = {
 
 // ============================== Costs ==============================
 
-const EMPTY_COST: CostInput = { category: "feed", amount: "", description: "", accruedDate: "" };
+const EMPTY_COST: CostInput = { category: "feed", amount: "", description: "", accruedDate: "", vendorName: "", invoiceNumber: "" };
 
 function CostForm({
   idPrefix, start, submitLabel, onSubmit, onCancel,
@@ -104,6 +107,14 @@ function CostForm({
           <Input id={`${idPrefix}-desc`} placeholder="e.g. 10 tons hay" value={c.description} onChange={set("description")} disabled={busy} />
         </Field>
       </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id={`${idPrefix}-vendor`} label="Paid to (vendor)">
+          <Input id={`${idPrefix}-vendor`} placeholder="e.g. Smith Feed & Supply" value={c.vendorName ?? ""} onChange={set("vendorName")} disabled={busy} />
+        </Field>
+        <Field id={`${idPrefix}-inv`} label="Invoice number">
+          <Input id={`${idPrefix}-inv`} placeholder="e.g. 10442" value={c.invoiceNumber ?? ""} onChange={set("invoiceNumber")} disabled={busy} />
+        </Field>
+      </div>
       <ErrorLine message={error} />
       <div className="flex gap-2">
         <Button onClick={submit} disabled={busy}>{busy ? "Saving..." : submitLabel}</Button>
@@ -113,7 +124,7 @@ function CostForm({
   );
 }
 
-function CostRow({ e, onDone }: { e: Expense; onDone: (msg: string) => void }) {
+function CostRow({ e, canAttach, onDone }: { e: Expense; canAttach: boolean; onDone: (msg: string) => void }) {
   const [mode, setMode] = useState<"none" | "edit" | "void">("none");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +137,8 @@ function CostRow({ e, onDone }: { e: Expense; onDone: (msg: string) => void }) {
     if (Number(c.amount) !== e.amount) changes.amount = c.amount;
     if (c.description.trim() !== (e.description ?? "")) changes.description = c.description.trim();
     if (c.accruedDate && c.accruedDate !== e.accruedDate) changes.accruedDate = c.accruedDate;
+    if ((c.vendorName ?? "").trim() !== (e.vendorName ?? "")) changes.vendorName = (c.vendorName ?? "").trim();
+    if ((c.invoiceNumber ?? "").trim() !== (e.invoiceNumber ?? "")) changes.invoiceNumber = (c.invoiceNumber ?? "").trim();
     if (Object.keys(changes).length === 0) { setMode("none"); return; }
     const r = await patchCost(e.expenseId, changes);
     setMode("none");
@@ -156,12 +169,20 @@ function CostRow({ e, onDone }: { e: Expense; onDone: (msg: string) => void }) {
           <p className="text-xs text-muted-foreground">
             {shortDate(e.accruedDate)}{e.description ? ` - ${e.description}` : ""}
           </p>
+          {(e.vendorName || e.invoiceNumber) && (
+            <p className="text-xs text-muted-foreground">
+              {e.vendorName ? `Paid to ${e.vendorName}` : ""}{e.vendorName && e.invoiceNumber ? ", " : ""}{e.invoiceNumber ? `invoice ${e.invoiceNumber}` : ""}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {voided ? (
             <Badge variant="outline">Voided</Badge>
           ) : (
-            <span className="text-xs text-muted-foreground">{SOURCE_LABEL[e.source] ?? e.source}</span>
+            <>
+              <StatusBadge status={e.verificationStatus} />
+              <span className="text-xs text-muted-foreground">{SOURCE_LABEL[e.source] ?? e.source}</span>
+            </>
           )}
           {!voided && e.canChange && mode === "none" && (
             <>
@@ -172,11 +193,18 @@ function CostRow({ e, onDone }: { e: Expense; onDone: (msg: string) => void }) {
         </div>
       </div>
       {voided && e.voidReason && <p className="mt-1 text-xs text-muted-foreground">Voided: {e.voidReason}</p>}
+      {!voided && e.source === "manual" && (
+        <div className="mt-2 space-y-1">
+          <SignalList signals={e.signals} />
+          <InvoiceLinks documents={e.documents} />
+          {canAttach && <InvoiceUpload expenseId={e.expenseId} onDone={onDone} />}
+        </div>
+      )}
       {mode === "edit" && (
         <div className="mt-3">
           <CostForm
             idPrefix={`edit-${e.expenseId}`}
-            start={{ category: e.category, amount: String(e.amount), description: e.description ?? "", accruedDate: e.accruedDate }}
+            start={{ category: e.category, amount: String(e.amount), description: e.description ?? "", accruedDate: e.accruedDate, vendorName: e.vendorName ?? "", invoiceNumber: e.invoiceNumber ?? "" }}
             submitLabel="Save changes"
             onSubmit={saveEdit}
             onCancel={() => setMode("none")}
@@ -204,6 +232,13 @@ function CostsTab({ herdId, costs, onDone }: { herdId: string; costs: HerdCosts;
   const saleState = costs.herd.saleState;
   const canAdd = !saleState;
   const active = costs.expenses.filter((e) => e.status === "active");
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  // Reloaded whenever the costs are (a reply or a new cost changes `costs`).
+  useEffect(() => {
+    let alive = true;
+    getDisputes(herdId).then((r) => alive && setDisputes(r.disputes)).catch(() => alive && setDisputes([]));
+    return () => { alive = false; };
+  }, [herdId, costs]);
 
   return (
     <div className="space-y-4">
@@ -218,6 +253,7 @@ function CostsTab({ herdId, costs, onDone }: { herdId: string; costs: HerdCosts;
         {costs.herd.investorsHaveBought
           ? " Investors have bought into this herd, so you can add costs but not change or void them. Ask CattleCoin if one needs correcting."
           : " You can change or void a cost you added until an investor buys in."}
+        {" "}Attach the invoice or receipt to each cost you log. Investors can see which costs have one, and a cost with no invoice is flagged for review before a sale.
       </p>
       {saleState && (
         <p className="text-sm text-amber-800">
@@ -239,11 +275,13 @@ function CostsTab({ herdId, costs, onDone }: { herdId: string; costs: HerdCosts;
         </div>
       )}
 
+      <OwnerDisputes disputes={disputes} onDone={onDone} />
+
       {costs.expenses.length === 0 ? (
         <p className="text-sm text-muted-foreground">No costs logged yet.</p>
       ) : (
         <ul className="space-y-2">
-          {[...costs.expenses].reverse().map((e) => <CostRow key={e.expenseId} e={e} onDone={onDone} />)}
+          {[...costs.expenses].reverse().map((e) => <CostRow key={e.expenseId} e={e} canAttach={saleState !== "approved"} onDone={onDone} />)}
         </ul>
       )}
       {active.length > 0 && costs.expenses.length > active.length && (

@@ -14,6 +14,7 @@ import { PipelineBar } from "@/components/pool/PipelineBar";
 import { CostBreakdown } from "@/components/pool/CostBreakdown";
 import { CowsTable, CowsTableSkeleton } from "@/components/tables/CowsTable";
 import { HerdMoneyCards } from "@/components/pool/HerdMoneyCards";
+import { TrackRecordCard } from "@/components/pool/TrackRecordCard";
 import { getPoolById, getPoolCows, getInvestorHoldings, PoolNotFoundError } from "@/lib/api";
 import type { PoolNotFoundReason } from "@/lib/api";
 import type { PoolDetail as PoolDetailType, Cow, PurchaseStatus } from "@/lib/types";
@@ -236,6 +237,9 @@ export function PoolDetail() {
 
       {/* Investor money: what you paid, what the herd has cost, LRP */}
       {id && <HerdMoneyCards herdId={id} slug={resolvedSlug} />}
+
+      {/* The producer's record, read from the ledger */}
+      {id && <TrackRecordCard herdId={id} />}
 
       {/* Two column: Pipeline + Stepper | Budget + Chart */}
       <div className="grid lg:grid-cols-2 gap-6">

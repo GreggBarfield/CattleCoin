@@ -11,6 +11,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { getHerds, type HerdListItem } from "@/lib/feeSetup";
+import { getDisputes, getCostReviewSummary, type Dispute, type CostReviewSummary } from "@/lib/costReview";
+import { StatusBadge, InvoiceLinks, SignalList } from "@/components/costs/CostEvidence";
+import { AdminCostReview, AdminDisputes, CostReviewBanner } from "@/components/costs/AdminCostReview";
 import {
   getHerdCosts, patchExpense, voidExpense,
   getHerdLrp, putLrpPolicy,
@@ -122,13 +125,33 @@ function ExpenseRow({ expense, onChanged }: { expense: Expense; onChanged: () =>
               {expense.billingDirection === "service" ? "Service-billed" : "Self-billed"} - source: {expense.source}
               {expense.createdBy ? ` - by ${expense.createdBy}` : ""}
             </p>
+            {expense.source === "manual" && (
+              <div className="mt-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={expense.verificationStatus} />
+                  {(expense.vendorName || expense.invoiceNumber) && (
+                    <span className="text-xs text-muted-foreground">
+                      {expense.vendorName ?? ""}{expense.vendorName && expense.invoiceNumber ? ", " : ""}{expense.invoiceNumber ? `invoice ${expense.invoiceNumber}` : ""}
+                    </span>
+                  )}
+                </div>
+                {expense.verificationNote && <p className="text-xs text-muted-foreground">Note: {expense.verificationNote}</p>}
+                <SignalList signals={expense.signals} />
+                <InvoiceLinks documents={expense.documents} />
+              </div>
+            )}
           </div>
-          {expense.canChange && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Correct</Button>
-              <Button size="sm" variant="destructive" onClick={voidIt} disabled={busy}>Void</Button>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {expense.canChange && (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Correct</Button>
+                <Button size="sm" variant="destructive" onClick={voidIt} disabled={busy}>Void</Button>
+              </div>
+            )}
+            {expense.source === "manual" && expense.canChange && (
+              <AdminCostReview expenseId={expense.expenseId} hasInvoice={(expense.documents?.length ?? 0) > 0} onChanged={onChanged} />
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
@@ -161,14 +184,17 @@ function CostsSection() {
   const { herds, error: herdsError } = useHerdList();
   const [herdId, setHerdId] = useState("");
   const [data, setData] = useState<Awaited<ReturnType<typeof getHerdCosts>> | null>(null);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   function load(id: string) {
     setHerdId(id);
     setData(null);
+    setDisputes([]);
     setError(null);
     if (!id) return;
     getHerdCosts(id).then(setData).catch((e) => setError(errMsg(e, "Could not load this herd's costs.")));
+    getDisputes(id).then((r) => setDisputes(r.disputes)).catch(() => setDisputes([]));
   }
 
   const active = data?.expenses.filter((e) => e.status === "active") ?? [];
@@ -203,6 +229,7 @@ function CostsSection() {
               </Badge>
               {data.herd.saleState && <Badge variant="outline">Sale: {data.herd.saleState.replace(/_/g, " ")}</Badge>}
             </div>
+            <AdminDisputes disputes={disputes} onChanged={() => load(herdId)} />
             {active.length === 0 ? (
               <p className="text-sm text-muted-foreground">No active costs logged for this herd.</p>
             ) : (
@@ -376,6 +403,21 @@ function SaleActions({ sale, onChanged }: { sale: Sale; onChanged: () => void })
   const [lrpIndemnity, setLrpIndemnity] = useState(String(sale.lrpIndemnity));
   const [lrpNote, setLrpNote] = useState(sale.lrpNote ?? "");
   const [headLost, setHeadLost] = useState(sale.headLost != null ? String(sale.headLost) : "");
+  const [review, setReview] = useState<CostReviewSummary | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+
+  // What the cost review found for this herd. If it cannot be loaded the server
+  // still enforces the same rules when Approve is pressed, and says why.
+  const pending = sale.status === "pending_approval";
+  useEffect(() => {
+    if (!pending) return;
+    let alive = true;
+    getCostReviewSummary(sale.herdId).then((r) => alive && setReview(r)).catch(() => alive && setReview(null));
+    return () => { alive = false; };
+  }, [pending, sale.herdId, sale.saleId]);
+
+  const needsAck = !!review?.needsAcknowledgement;
+  const approveBlocked = !!review?.blocked || (needsAck && !acknowledged);
 
   async function act(fn: (id: string, note?: string) => Promise<unknown>) {
     setBusy(true);
@@ -413,12 +455,19 @@ function SaleActions({ sale, onChanged }: { sale: Sale; onChanged: () => void })
   return (
     <div className="space-y-2 border-t border-border pt-3">
       {error && <ErrorNote message={error} />}
+      {review && <CostReviewBanner review={review} />}
+      {needsAck && !review?.blocked && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
+          I have looked at the cost warnings above and want to approve anyway
+        </label>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1.5">
           <Label>Note (optional)</Label>
           <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-64" />
         </div>
-        <Button size="sm" onClick={() => act(approveSale)} disabled={busy}>Approve</Button>
+        <Button size="sm" onClick={() => act((id, n) => approveSale(id, n, acknowledged))} disabled={busy || approveBlocked}>Approve</Button>
         <Button size="sm" variant="destructive" onClick={() => act(rejectSale)} disabled={busy}>Reject</Button>
         <Button size="sm" variant="outline" onClick={() => setCorrecting((c) => !c)}>Correct</Button>
       </div>

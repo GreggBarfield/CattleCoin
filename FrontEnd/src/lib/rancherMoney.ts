@@ -80,7 +80,10 @@ export const SOURCE_LABEL: Record<string, string> = {
 
 export const getCosts = (herdId: string) => getJSON<HerdCosts>(`/expenses/herds/${herdId}`);
 
-export type CostInput = { category: string; amount: string; description: string; accruedDate: string };
+export type CostInput = {
+  category: string; amount: string; description: string; accruedDate: string;
+  vendorName?: string; invoiceNumber?: string;
+};
 
 export const postCost = (herdId: string, c: CostInput) =>
   sendJSON<{ message: string; expense: Expense }>(`/expenses/herds/${herdId}`, "POST", compact({
@@ -88,6 +91,8 @@ export const postCost = (herdId: string, c: CostInput) =>
     amount: Number(c.amount),
     description: c.description.trim() || undefined,
     accruedDate: c.accruedDate || undefined,
+    vendorName: c.vendorName?.trim() || undefined,
+    invoiceNumber: c.invoiceNumber?.trim() || undefined,
   }));
 
 // Only the fields that changed are sent.
@@ -97,6 +102,8 @@ export const patchCost = (expenseId: string, changes: Partial<CostInput>) =>
     amount: changes.amount !== undefined ? Number(changes.amount) : undefined,
     description: changes.description,
     accruedDate: changes.accruedDate,
+    vendorName: changes.vendorName,
+    invoiceNumber: changes.invoiceNumber,
   }));
 
 export const voidCost = (expenseId: string, reason: string) =>

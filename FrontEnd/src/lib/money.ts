@@ -147,6 +147,13 @@ export type HerdExpense = {
   billingDirection: "self" | "service";
   source: string;
   status: "active" | "voided";
+  vendorName?: string | null;
+  invoiceNumber?: string | null;
+  verificationStatus?: import("@/lib/costReview").VerificationStatus;
+  verificationNote?: string | null;
+  documents?: import("@/lib/costReview").CostDocument[];
+  signals?: import("@/lib/costReview").CostSignal[];
+  openDisputes?: number;
 };
 
 export type HerdCosts = {

@@ -8,6 +8,7 @@ import { VerifiedBadge } from "@/components/common/VerifiedBadge";
 import { PoolsTable, PoolsTableSkeleton } from "@/components/tables/PoolsTable";
 import { MyInvestments } from "@/components/common/MyInvestments";
 import { WalletPanel } from "@/components/common/WalletPanel";
+import { CostAlerts } from "@/components/costs/CostAlerts";
 import type { PoolSortKey } from "@/components/tables/PoolsTable";
 import { getInvestorPortfolio, getInvestorHoldings } from "@/lib/api";
 import type { PortfolioSummary, Pool } from "@/lib/types";
@@ -84,6 +85,9 @@ export function InvestorDashboard() {
           </span>
         )}
       </div>
+
+      {/* New costs on herds this investor holds, since they last looked */}
+      <CostAlerts slug={resolvedSlug} />
 
       {/* KPI Cards — all labeled */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

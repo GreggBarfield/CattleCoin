@@ -145,7 +145,7 @@ describe("herd money panel", () => {
     expect(postCost).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Amount ($)"), { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: "Log cost" }));
-    await waitFor(() => expect(postCost).toHaveBeenCalledWith("h1", { category: "feed", amount: "500", description: "", accruedDate: "" }));
+    await waitFor(() => expect(postCost).toHaveBeenCalledWith("h1", { category: "feed", amount: "500", description: "", accruedDate: "", vendorName: "", invoiceNumber: "" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Cost logged."));
     expect(getCosts).toHaveBeenCalledTimes(2); // reloaded
   });

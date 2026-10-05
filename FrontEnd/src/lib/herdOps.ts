@@ -66,6 +66,13 @@ export type Expense = {
   voidReason: string | null;
   canChange?: boolean;
   changeNeedsReason?: boolean;
+  vendorName?: string | null;
+  invoiceNumber?: string | null;
+  verificationStatus?: import("@/lib/costReview").VerificationStatus;
+  verificationNote?: string | null;
+  documents?: import("@/lib/costReview").CostDocument[];
+  signals?: import("@/lib/costReview").CostSignal[];
+  openDisputes?: number;
 };
 
 export type HerdCostsAdmin = {
@@ -275,8 +282,11 @@ export const getSales = (status?: SaleStatus) => getJSON<Sale[]>(`/settlement/sa
 export const getSaleDetail = (saleId: string) => getJSON<SaleDetail>(`/settlement/sales/${saleId}`);
 export const getSaleStatement = (saleId: string) => getJSON<FullStatement>(`/settlement/sales/${saleId}/statement`);
 
-export const approveSale = (saleId: string, note?: string) =>
-  sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/approve`, "POST", { note: note || undefined });
+export const approveSale = (saleId: string, note?: string, acknowledgeCostWarnings?: boolean) =>
+  sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/approve`, "POST", {
+    note: note || undefined,
+    acknowledgeCostWarnings: acknowledgeCostWarnings ? true : undefined,
+  });
 
 export const rejectSale = (saleId: string, note?: string) =>
   sendJSON<{ message: string; sale: Sale }>(`/settlement/sales/${saleId}/reject`, "POST", { note: note || undefined });
