@@ -1,2 +1,16 @@
 .env
 .claude
+
+# Local secrets and stray files - never commit
+new_admin_pw.txt
+BackEnd/admin.sql
+BackEnd/generate-admin-sql.js
+phase0a_stray_key_and_admin_password.ps1
+find_stripe_keys.ps1
+.env*.bak
+
+# Backups and bundles made by apply and deploy scripts
+*.bak
+*.bak_*
+backup_*/
+*.zip
